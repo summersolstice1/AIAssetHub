@@ -1,0 +1,6 @@
+{
+  "name": "AI Asset Hub",
+  "description": "A local efficiency workspace featuring shell environment tracking, key managers, password box, and quick launchers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

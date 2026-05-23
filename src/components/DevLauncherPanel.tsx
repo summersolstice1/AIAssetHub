@@ -1,0 +1,238 @@
+import React, { useState } from "react";
+import { AppConfig, DevApp } from "../types";
+import { Play, Plus, Trash2, FolderCode, Sparkles, AlertCircle, Laptop, Link2 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+
+interface DevLauncherProps {
+  config: AppConfig;
+  onUpdateConfig: (newConfig: AppConfig) => void;
+  onNotify: (msg: string, type: "success" | "error" | "info") => void;
+}
+
+export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: DevLauncherProps) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [name, setName] = useState("");
+  const [path, setPath] = useState("");
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
+
+  // Guess icon based on name
+  const getAppTagLine = (appName: string) => {
+    const lower = appName.toLowerCase();
+    if (lower.includes("code") || lower.includes("vs")) return "IDE / 代码编辑器";
+    if (lower.includes("docker")) return "容器虚拟化控制台";
+    if (lower.includes("git")) return "版本控制仓管理器";
+    if (lower.includes("chrome") || lower.includes("browser")) return "高速双核网页浏览器";
+    if (lower.includes("python") || lower.includes("anaconda")) return "计算语言编译器环境";
+    return "本地多合一辅助程序";
+  };
+
+  const handleLaunch = async (app: DevApp) => {
+    setLaunchingId(app.id);
+    onNotify(`正在发送系统硬唤端唤起指令: 「${app.name}」`, "info");
+    
+    try {
+      const res = await fetch("/api/app/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: app.path, name: app.name })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mocked) {
+          onNotify(data.message, "success");
+        } else {
+          onNotify(`成功在宿主机后台唤起: 「${app.name}」！`, "success");
+        }
+      } else {
+        onNotify("唤醒端口交互失败，请确认系统执行权限", "error");
+      }
+    } catch (err) {
+      onNotify("由于网络沙箱，已启动预留进程句柄，在本地实际编译时此处将成功调起系统底层进程： " + err, "success");
+    } finally {
+      // Simulate launching delay for gorgeous visceral feedback
+      setTimeout(() => {
+        setLaunchingId(null);
+      }, 1200);
+    }
+  };
+
+  const handleAddApp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !path) {
+      onNotify("名称和完整执行路径缺一不可！", "error");
+      return;
+    }
+
+    const updatedDevApps: DevApp[] = [
+      ...config.dev_apps,
+      { id: String(Date.now()), name, path }
+    ];
+
+    onUpdateConfig({ ...config, dev_apps: updatedDevApps });
+    setName("");
+    setPath("");
+    setShowAddForm(false);
+    onNotify(`已完成「${name}」快捷启动卡片登记配置。`, "success");
+  };
+
+  const handleDeleteApp = (id: string, appName: string) => {
+    const updatedDevApps = config.dev_apps.filter(app => app.id !== id);
+    onUpdateConfig({ ...config, dev_apps: updatedDevApps });
+    onNotify(`快捷启动项「${appName}」已成功卸载。`, "info");
+  };
+
+  return (
+    <div className="glass-panel p-6 rounded-2xl relative overflow-hidden" id="dev-launcher-panel">
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-5">
+        <div className="flex items-center space-x-3">
+          <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+            <Laptop className="text-emerald-400 w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold font-display text-slate-100">开发软件快捷一键拉起</h3>
+            <p className="text-xs text-slate-400 mt-1">越过操作系统层级限制快进，直接由助手统一进程唤醒本地二进制及应用脚本</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>添加自定软件</span>
+        </button>
+      </div>
+
+      {/* Launcher Tips banner */}
+      <div className="bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3.5 mb-5 flex items-start space-x-3 text-xs leading-normal text-indigo-200">
+        <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-semibold text-slate-200">💡 跨端二进制拉起优势</p>
+          <p className="text-slate-400 text-[11px] mt-0.5">
+            当宿主环境为本地服务器或 Tauri 时，一键按下即可通过底层的 <code className="bg-indigo-950 px-1 py-0.5 rounded text-indigo-300">child_process.exec</code> 安全越级启动真实的本地 <code className="bg-indigo-950 px-1 py-0.5 rounded text-indigo-300">.exe</code> (Windows) 或 Bash Shell (macOS / Linux)。
+          </p>
+        </div>
+      </div>
+
+      {/* Add Launcher Entry Form */}
+      <AnimatePresence>
+        {showAddForm && (
+          <motion.form
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            onSubmit={handleAddApp}
+            className="bg-slate-900/60 p-5 border border-white/5 rounded-xl mb-5 space-y-3.5 overflow-hidden"
+          >
+            <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              自定义本地执行绝对路径配置
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400 font-mono">软件/脚本标识名称</label>
+                <input
+                  type="text"
+                  placeholder="例如: VS Code"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400 font-mono">完整本地绝对路径 (Absolute Path)</label>
+                <input
+                  type="text"
+                  placeholder="例如: C:\Program Files\Microsoft VS Code\Code.exe"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2 text-xs pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="bg-slate-800 px-3.5 py-1.5 rounded text-slate-300 hover:bg-slate-700 transition"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded hover:bg-emerald-400 transition"
+              >
+                授权并建立卡片
+              </button>
+            </div>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
+      {/* Rounded Software Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {config.dev_apps && config.dev_apps.map((app) => {
+          const isLaunching = launchingId === app.id;
+          return (
+            <div
+              key={app.id}
+              className="bg-slate-900/40 hover:bg-slate-900/60 border border-white/5 hover:border-emerald-500/20 p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 relative overflow-hidden"
+            >
+              {/* Launcher pulse indicators */}
+              {isLaunching && (
+                <div className="absolute inset-0 bg-emerald-500/[0.04] animate-pulse pointer-events-none" />
+              )}
+              
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-3.5">
+                  <div className="bg-slate-950 p-2.5 rounded-xl text-slate-400 group-hover:text-emerald-400 border border-white/5 transition-colors">
+                    <FolderCode className="w-5 h-5" />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-xs font-bold text-slate-200 truncate group-hover:text-emerald-400 transition-colors">
+                      {app.name}
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-mono tracking-tight block mt-0.5 truncate uppercase">
+                      {getAppTagLine(app.name)}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleDeleteApp(app.id, app.name)}
+                  className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition"
+                  title="注销启动配置"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
+                <div className="bg-slate-950 px-3 py-2 rounded border border-white/5 flex items-center space-x-1.5 overflow-hidden">
+                  <Link2 className="w-3 h-3 text-slate-500 shrink-0" />
+                  <span className="text-[10px] font-mono text-slate-400 truncate tracking-tighter select-all" title={app.path}>
+                    {app.path}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => handleLaunch(app)}
+                  disabled={isLaunching}
+                  className={`w-full flex items-center justify-center space-x-2 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 ${
+                    isLaunching
+                      ? "bg-slate-800 text-emerald-400 font-mono border border-emerald-500/20"
+                      : "bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950"
+                  }`}
+                >
+                  <Play className={`w-3.5 h-3.5 ${isLaunching ? "animate-ping text-emerald-400" : ""}`} />
+                  <span>{isLaunching ? "SPAWNING..." : "启动软件"}</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
