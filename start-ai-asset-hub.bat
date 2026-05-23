@@ -2,7 +2,7 @@
 setlocal
 
 cd /d "%~dp0"
-set "PORT=38173"
+set "PORT=3030"
 
 echo.
 echo Starting AI Asset Hub on http://localhost:%PORT%

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AppConfig, DevApp } from "../types";
-import { Play, Plus, Trash2, FolderCode, Sparkles, AlertCircle, Laptop, Link2 } from "lucide-react";
+import { Play, Plus, Trash2, FolderCode, Sparkles, AlertCircle, Laptop, Edit3, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface DevLauncherProps {
@@ -14,6 +14,9 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
   const [launchingId, setLaunchingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPath, setEditPath] = useState("");
 
   // Guess icon based on name
   const getAppTagLine = (appName: string) => {
@@ -79,6 +82,33 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
     const updatedDevApps = config.dev_apps.filter(app => app.id !== id);
     onUpdateConfig({ ...config, dev_apps: updatedDevApps });
     onNotify(`快捷启动项「${appName}」已成功卸载。`, "info");
+  };
+
+  const beginEdit = (app: DevApp) => {
+    setEditingId(app.id);
+    setEditName(app.name);
+    setEditPath(app.path);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditPath("");
+  };
+
+  const handleSaveEdit = (e: React.FormEvent, app: DevApp) => {
+    e.preventDefault();
+    if (!editName || !editPath) {
+      onNotify("编辑时名称和完整路径都不能为空。", "error");
+      return;
+    }
+
+    const updatedDevApps = config.dev_apps.map((item) => (
+      item.id === app.id ? { ...item, name: editName, path: editPath } : item
+    ));
+    onUpdateConfig({ ...config, dev_apps: updatedDevApps });
+    onNotify(`启动项「${editName}」已更新。`, "success");
+    cancelEdit();
   };
 
   return (
@@ -174,10 +204,17 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {config.dev_apps && config.dev_apps.map((app) => {
           const isLaunching = launchingId === app.id;
+          const isEditing = editingId === app.id;
           return (
             <div
               key={app.id}
-              className="bg-slate-900/40 hover:bg-slate-900/60 border border-white/5 hover:border-emerald-500/20 p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 relative overflow-hidden"
+              onDoubleClick={() => {
+                if (!isEditing) {
+                  handleLaunch(app);
+                }
+              }}
+              className="bg-slate-900/40 hover:bg-slate-900/60 border border-white/5 hover:border-emerald-500/20 p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-default"
+              title={isEditing ? "正在编辑启动项" : "双击启动软件"}
             >
               {/* Launcher pulse indicators */}
               {isLaunching && (
@@ -185,7 +222,7 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
               )}
               
               <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3.5">
+                <div className="flex items-center space-x-3.5 min-w-0">
                   <div className="bg-slate-950 p-2.5 rounded-xl text-slate-400 group-hover:text-emerald-400 border border-white/5 transition-colors">
                     <FolderCode className="w-5 h-5" />
                   </div>
@@ -199,36 +236,83 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleDeleteApp(app.id, app.name)}
-                  className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition"
-                  title="注销启动配置"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
-                <div className="bg-slate-950 px-3 py-2 rounded border border-white/5 flex items-center space-x-1.5 overflow-hidden">
-                  <Link2 className="w-3 h-3 text-slate-500 shrink-0" />
-                  <span className="text-[10px] font-mono text-slate-400 truncate tracking-tighter select-all" title={app.path}>
-                    {app.path}
-                  </span>
+                <div className="flex items-center space-x-1 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      beginEdit(app);
+                    }}
+                    className="text-slate-500 hover:text-emerald-400 p-1 rounded hover:bg-slate-800 transition"
+                    title="编辑路径"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteApp(app.id, app.name);
+                    }}
+                    className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition"
+                    title="注销启动配置"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => handleLaunch(app)}
-                  disabled={isLaunching}
-                  className={`w-full flex items-center justify-center space-x-2 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 ${
-                    isLaunching
-                      ? "bg-slate-800 text-emerald-400 font-mono border border-emerald-500/20"
-                      : "bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950"
-                  }`}
-                >
-                  <Play className={`w-3.5 h-3.5 ${isLaunching ? "animate-ping text-emerald-400" : ""}`} />
-                  <span>{isLaunching ? "SPAWNING..." : "启动软件"}</span>
-                </button>
               </div>
+
+              {isEditing ? (
+                <form
+                  onSubmit={(e) => handleSaveEdit(e, app)}
+                  className="mt-4 pt-3 border-t border-white/5 space-y-3"
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                    placeholder="软件名称"
+                  />
+                  <input
+                    type="text"
+                    value={editPath}
+                    onChange={(e) => setEditPath(e.target.value)}
+                    className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                    placeholder="完整本地绝对路径"
+                  />
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="flex items-center space-x-1 text-[11px] px-2.5 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>取消</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex items-center space-x-1 text-[11px] px-2.5 py-1.5 rounded bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400"
+                    >
+                      <Check className="w-3 h-3" />
+                      <span>保存</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    双击启动
+                  </div>
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all ${
+                    isLaunching
+                      ? "bg-slate-800 text-emerald-400 border-emerald-500/20"
+                      : "bg-emerald-500 text-slate-950 border-emerald-400/50 group-hover:scale-105"
+                  }`}>
+                    <Play className={`w-5 h-5 ${isLaunching ? "animate-ping text-emerald-400" : ""}`} />
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

@@ -1,0 +1,137 @@
+{
+  "ai_apps": [
+    {
+      "id": "1",
+      "name": "ChatGPT",
+      "url": "https://chatgpt.com"
+    },
+    {
+      "id": "2",
+      "name": "Claude AI",
+      "url": "https://claude.ai"
+    },
+    {
+      "id": "3",
+      "name": "Google Gemini",
+      "url": "https://gemini.google.com"
+    },
+    {
+      "id": "4",
+      "name": "DeepSeek",
+      "url": "https://chat.deepseek.com"
+    }
+  ],
+  "api_keys": [
+    {
+      "id": "1",
+      "platform": "OpenAI",
+      "key": "sk-proj-78a2e************************19b",
+      "dashboard_url": "https://platform.openai.com/api-keys"
+    },
+    {
+      "id": "2",
+      "platform": "Anthropic Claude",
+      "key": "sk-ant-sid01************************44a",
+      "dashboard_url": "https://console.anthropic.com/"
+    },
+    {
+      "id": "3",
+      "platform": "Google Gemini",
+      "key": "AIzaSy************************zN9",
+      "dashboard_url": "https://aistudio.google.com/"
+    }
+  ],
+  "prompts": {
+    "Code": [
+      {
+        "id": "1",
+        "title": "优化 & 重构",
+        "content": "请作为资深架构师，重构以下 TypeScript 函数。要求提高其时间与空间复杂度，并写出详细的重构说明："
+      },
+      {
+        "id": "2",
+        "title": "单元测试生成",
+        "content": "帮我针对以下前端 React 组件编写一份 Vitest 或 Jest 单元测试用例，覆盖所有的关键渲染逻辑和交互场景："
+      }
+    ],
+    "Writing": [
+      {
+        "id": "3",
+        "title": "文章精简润色",
+        "content": "请润色以下文案，使其具有科技先锋感与职业信服力。在不改变主体思想的情况下，精简 20% 的冗余字词："
+      },
+      {
+        "id": "4",
+        "title": "周报自动撰写",
+        "content": "根据以下粗略的开发交付日志，自动生成一份结构清晰、包含‘本周工作’、‘遇到问题与解决方案’以及‘下周规划’的周报内容："
+      }
+    ],
+    "Design": [
+      {
+        "id": "5",
+        "title": "Tailwind配色建议",
+        "content": "设计一个以神秘太空黑（Space Black）为基底，搭配薄荷绿闪光色（Mint Glow）和优雅石墨灰的现代高对比度配色方案，输出对应的 Tailwind 颜色配置类："
+      }
+    ]
+  },
+  "dev_apps": [
+    {
+      "id": "1",
+      "name": "VS Code",
+      "path": "C:\\Program Files\\Microsoft VS Code\\Code.exe"
+    },
+    {
+      "id": "2",
+      "name": "Docker Desktop",
+      "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe"
+    },
+    {
+      "id": "3",
+      "name": "GitKraken",
+      "path": "C:\\Program Files\\GitKraken\\gitkraken.exe"
+    }
+  ],
+  "passwords": {
+    "software": [
+      {
+        "id": "1",
+        "name": "GitHub Account",
+        "account": "developer-pro",
+        "password": "ghp_secure_credential_token_abc123",
+        "remark": "主开发账号，已开启 2FA 认证"
+      },
+      {
+        "id": "2",
+        "name": "Docker Hub Token",
+        "account": "prod_mirror_registry",
+        "password": "dht_token_prod_99aa88bb77",
+        "remark": "私有镜像拉取密钥"
+      },
+      {
+        "id": "1779539406861",
+        "name": "123",
+        "account": "123",
+        "password": "123",
+        "remark": "123"
+      }
+    ],
+    "web": [
+      {
+        "id": "3",
+        "name": "AWS Console Login",
+        "account": "admin@cloudsystem.root",
+        "password": "AwsPassword123!!#",
+        "remark": "多云运维主账号，注意账单限额"
+      }
+    ],
+    "finance": [
+      {
+        "id": "4",
+        "name": "Silicon Valley Cash Card",
+        "account": "4226-0092-2283-7711",
+        "password": "ATM: 994821, CardPin: 8812",
+        "remark": "外币结算测试备用卡"
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AppConfig, AIApp, APIKey, PromptItem } from "../types";
 import { 
   Chrome, ExternalLink, Key, Eye, EyeOff, Copy, Check, Plus, 
@@ -31,6 +31,13 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
   const [showAddPrompt, setShowAddPrompt] = useState(false);
   const [newPromptTitle, setNewPromptTitle] = useState("");
   const [newPromptContent, setNewPromptContent] = useState("");
+  const [promptTargetCategory, setPromptTargetCategory] = useState("Code");
+  const [customPromptCategory, setCustomPromptCategory] = useState("");
+
+  useEffect(() => {
+    setPromptTargetCategory(activePromptCategory);
+    setCustomPromptCategory("");
+  }, [activePromptCategory]);
 
   // Copy clip helper
   const handleCopy = (text: string, title: string) => {
@@ -106,12 +113,21 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
   // Add a new prompt to current selected category
   const handleAddPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
+    const targetCategory = promptTargetCategory === "__custom__"
+      ? customPromptCategory.trim()
+      : promptTargetCategory;
+
+    if (!targetCategory) {
+      onNotify("请先选择或填写一个 Prompt 标签。", "error");
+      return;
+    }
+
     if (!newPromptTitle || !newPromptContent) {
       onNotify("标题与 Prompt 主体内容缺一不可！", "error");
       return;
     }
 
-    const currentCatPrompts = config.prompts[activePromptCategory] || [];
+    const currentCatPrompts = config.prompts[targetCategory] || [];
     const updatedCatList: PromptItem[] = [
       ...currentCatPrompts,
       { id: String(Date.now()), title: newPromptTitle, content: newPromptContent }
@@ -119,14 +135,17 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
 
     const updatedPrompts = {
       ...config.prompts,
-      [activePromptCategory]: updatedCatList
+      [targetCategory]: updatedCatList
     };
 
     onUpdateConfig({ ...config, prompts: updatedPrompts });
     setNewPromptTitle("");
     setNewPromptContent("");
+    setCustomPromptCategory("");
+    setPromptTargetCategory(targetCategory);
+    setActivePromptCategory(targetCategory);
     setShowAddPrompt(false);
-    onNotify(`已在「${activePromptCategory}」分类中成功沉淀新 Prompt 模板。`, "success");
+    onNotify(`已在「${targetCategory}」标签中成功沉淀新 Prompt 模板。`, "success");
   };
 
   // Delete Prompt
@@ -427,7 +446,32 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
               onSubmit={handleAddPrompt}
               className="bg-slate-900/60 p-4 border border-white/5 rounded-xl mb-4 space-y-3 overflow-hidden"
             >
-              <h4 className="text-xs font-bold text-slate-300">沉淀高质量 Prompt 至当前分类 [{activePromptCategory}]</h4>
+              <h4 className="text-xs font-bold text-slate-300">沉淀高质量 Prompt 至指定标签</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <select
+                  value={promptTargetCategory}
+                  onChange={(e) => setPromptTargetCategory(e.target.value)}
+                  className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                >
+                  {promptCategories.map((catKey) => (
+                    <option key={catKey} value={catKey}>{catKey}</option>
+                  ))}
+                  <option value="__custom__">+ 自定义新标签</option>
+                </select>
+                {promptTargetCategory === "__custom__" ? (
+                  <input
+                    type="text"
+                    placeholder="输入自定义标签，例如: 面试 / 产品 / 日报"
+                    value={customPromptCategory}
+                    onChange={(e) => setCustomPromptCategory(e.target.value)}
+                    className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                  />
+                ) : (
+                  <div className="bg-slate-950/70 px-3 py-2 text-xs text-slate-400 border border-white/5 rounded font-mono">
+                    当前写入标签: {promptTargetCategory}
+                  </div>
+                )}
+              </div>
               <div className="space-y-3">
                 <input
                   type="text"

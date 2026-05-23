@@ -5,6 +5,7 @@ import SystemHubPanel from "./components/SystemHubPanel";
 import DevLauncherPanel from "./components/DevLauncherPanel";
 import SafeBoxPanel from "./components/SafeBoxPanel";
 import LocalSyncPanel from "./components/LocalSyncPanel";
+import { getEnvironmentStatus } from "./services/systemService";
 import { 
   Chrome, Cpu, Laptop, KeyRound, Radio, ArrowLeftRight, Clock, 
   Settings, Sparkles, Smile, ShieldCheck, AlertCircle, RefreshCw,
@@ -70,6 +71,12 @@ export default function App() {
 
   useEffect(() => {
     loadConfiguration();
+  }, []);
+
+  useEffect(() => {
+    getEnvironmentStatus().catch((err) => {
+      console.warn("Startup environment probe failed", err);
+    });
   }, []);
 
   // Notification Toast Manager

@@ -1,7 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { Cpu, RefreshCw, Terminal, CheckCircle2, ShieldCheck, Database } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { SystemMetrics, EnvStatus } from "../types";
+import React, { useEffect, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Cpu,
+  Database,
+  PackageCheck,
+  RefreshCw,
+  ShieldCheck,
+  Terminal
+} from "lucide-react";
+import { motion } from "motion/react";
+import { EnvStatus, SystemMetrics } from "../types";
+import {
+  getCachedEnvironmentStatus,
+  getEnvironmentStatus,
+  getSystemMetrics
+} from "../services/systemService";
 
 interface SystemHubProps {
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
@@ -9,18 +23,16 @@ interface SystemHubProps {
 
 export default function SystemHubPanel({ onNotify }: SystemHubProps) {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null);
+  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(() => getCachedEnvironmentStatus());
   const [loadingEnv, setLoadingEnv] = useState(false);
-  const [tick, setTick] = useState(0);
 
   // Poll metrics every 2 seconds for active reactive gauges
   useEffect(() => {
     let isActive = true;
     const fetchMetrics = async () => {
       try {
-        const res = await fetch("/api/system/metrics");
-        if (res.ok && isActive) {
-          const data = await res.json();
+        const data = await getSystemMetrics();
+        if (isActive) {
           setMetrics(data);
         }
       } catch (err) {
@@ -29,10 +41,7 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
     };
 
     fetchMetrics();
-    const interval = setInterval(() => {
-      fetchMetrics();
-      setTick((t) => t + 1);
-    }, 2000);
+    const interval = setInterval(fetchMetrics, 2000);
 
     return () => {
       isActive = false;
@@ -40,18 +49,18 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
     };
   }, []);
 
-  // Fetch env status once, or on reload
-  const fetchEnv = async () => {
+  const fetchEnv = async (forceRefresh = false) => {
+    const cached = getCachedEnvironmentStatus();
+    if (cached && !forceRefresh) {
+      setEnvStatus(cached);
+      return;
+    }
+
     setLoadingEnv(true);
     try {
-      const res = await fetch("/api/system/env");
-      if (res.ok) {
-        const data = await res.json();
-        setEnvStatus(data);
-        onNotify("已成功重新对系统 Python & Conda 开发环境进行了探查", "success");
-      } else {
-        onNotify("开发环境探查接口返回错误", "error");
-      }
+      const data = await getEnvironmentStatus(forceRefresh);
+      setEnvStatus(data);
+      onNotify(forceRefresh ? "开发环境信息已手动刷新。" : "开发环境已完成启动检测并缓存。", "success");
     } catch (err) {
       onNotify("无法连接后端探查本地环境 " + err, "error");
     } finally {
@@ -60,7 +69,7 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
   };
 
   useEffect(() => {
-    fetchEnv();
+    fetchEnv(false);
   }, []);
 
   if (!metrics) {
@@ -72,15 +81,43 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
     );
   }
 
-  // Calculate memory values in percentage
   const memoryPercent = Math.round((metrics.memoryUsed / metrics.memoryTotal) * 100);
   const vramPercent = Math.round((metrics.gpuVramUsed / metrics.gpuVramTotal) * 100);
+  const refreshedAt = envStatus?.refreshedAt
+    ? new Date(envStatus.refreshedAt).toLocaleString("zh-CN", { hour12: false })
+    : "尚未完成检测";
+  const jdkSummary = envStatus?.jdkVersions?.length ? envStatus.jdkVersions.join(" / ") : "未检测到 JDK";
+
+  const environmentCards = [
+    {
+      id: "python",
+      title: "PYTHON RUNTIME",
+      value: envStatus?.pythonVersion || "等待检测",
+      description: "全局 Python 运行时，可支撑本地脚本和 AI 推理任务。",
+      accentText: "text-emerald-400",
+      accentDot: "bg-emerald-400"
+    },
+    {
+      id: "java",
+      title: "JDK / JRE",
+      value: jdkSummary,
+      description: "检测 java 与 javac，用于 Java/Kotlin/Android 等工具链。",
+      accentText: "text-amber-400",
+      accentDot: "bg-amber-400"
+    },
+    {
+      id: "cuda",
+      title: "ACCELERATOR ENGINE",
+      value: envStatus?.cudaVersion || "等待检测",
+      description: "NVIDIA CUDA / nvidia-smi 状态，供深度学习与 GPU 任务参考。",
+      accentText: "text-rose-400",
+      accentDot: "bg-rose-400"
+    }
+  ];
 
   return (
     <div className="space-y-6" id="system-hub-root">
-      {/* 🚀 Dynamic Hardware Grid - Bento Design */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Card 1: CPU Load */}
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between group hover:border-emerald-500/40 transition-all duration-300">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
           <div className="flex items-center justify-between">
@@ -89,7 +126,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
 
           <div className="my-4 flex items-center justify-center">
-            {/* SVG Arc Gauge */}
             <div className="relative w-28 h-28 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="40" stroke="#1e293b" strokeWidth="8" fill="transparent" />
@@ -124,7 +160,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
         </div>
 
-        {/* Card 2: Memory Physical Buffer */}
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between group hover:border-indigo-500/40 transition-all duration-300">
           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-colors" />
           <div className="flex items-center justify-between">
@@ -133,7 +168,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
 
           <div className="my-4 flex items-center justify-center">
-            {/* SVG Circle Gauge for Ram */}
             <div className="relative w-28 h-28 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="40" stroke="#1e293b" strokeWidth="8" fill="transparent" />
@@ -168,7 +202,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
         </div>
 
-        {/* Card 3: GPU NVIDIA Temp Meter */}
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between group hover:border-rose-500/40 transition-all duration-300">
           <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors" />
           <div className="flex items-center justify-between">
@@ -177,7 +210,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
 
           <div className="my-4 flex items-center justify-center">
-            {/* SVG Arc for Temp */}
             <div className="relative w-28 h-28 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="40" stroke="#1e293b" strokeWidth="8" fill="transparent" />
@@ -212,7 +244,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
         </div>
 
-        {/* Card 4: GPU NVIDIA VRAM */}
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between group hover:border-amber-500/40 transition-all duration-300">
           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
           <div className="flex items-center justify-between">
@@ -221,7 +252,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
 
           <div className="my-4 flex items-center justify-center">
-            {/* SVG Circle Gauge for VRAM */}
             <div className="relative w-28 h-28 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="40" stroke="#1e293b" strokeWidth="8" fill="transparent" />
@@ -257,7 +287,6 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
         </div>
       </div>
 
-      {/* 💻 Environment Diagnostic Section */}
       <div className="glass-panel p-6 rounded-2xl relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-white/5 pb-4">
           <div className="flex items-center space-x-3">
@@ -268,81 +297,101 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
               <h3 className="text-base font-bold font-display text-slate-100 flex items-center gap-2">
                 本地软件开发环境
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase font-mono">
-                  Shell Active
+                  Cached Probe
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 mt-1">诊断电脑当下的 Python / Conda 开发环境以及 CUDA 加速器</p>
+              <p className="text-xs text-slate-400 mt-1">应用启动后检测一次，之后保持缓存；需要更新时手动刷新。</p>
+              <p className="text-[11px] text-slate-500 mt-1 font-mono">上次刷新: {refreshedAt}</p>
             </div>
           </div>
           <button
-            onClick={fetchEnv}
+            onClick={() => fetchEnv(true)}
             disabled={loadingEnv}
             className="flex items-center space-x-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 hover:text-emerald-400 active:scale-95 transition-all text-slate-300 border border-white/5 disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingEnv ? "animate-spin" : ""}`} />
-            <span>{loadingEnv ? "诊断中..." : "重新诊断"}</span>
+            <span>{loadingEnv ? "诊断中..." : "手动刷新"}</span>
           </button>
         </div>
 
         {loadingEnv ? (
           <div className="flex items-center justify-center py-8 text-slate-400 font-mono text-xs space-y-2 flex-col">
             <RefreshCw className="animate-spin text-emerald-400 w-5 h-5" />
-            <p>正在后台安全调取 Shell 命令 `python --version` & `conda env list` 并解析中...</p>
+            <p>正在后台探查 Python / Conda / CUDA / JDK / Node / Git 等开发环境...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Column 1: Python Runtime */}
-            <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 space-y-3">
-              <div className="flex items-center justify-between text-slate-300">
-                <span className="text-xs font-semibold font-mono text-emerald-400 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-                  PYTHON RUNTIME
-                </span>
-                <CheckCircle2 className="text-emerald-400 w-4 h-4" />
-              </div>
-              <div className="font-mono text-sm font-medium tracking-tight bg-slate-950 px-3 py-2 rounded border border-white/5 select-all">
-                {envStatus?.pythonVersion || "Python 3.10.12 (Native Execution)"}
-              </div>
-              <p className="text-[11px] text-slate-500">检测到全局可用 Python 启动项，可以直接支持拉起本地 AI 推理脚本。</p>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {environmentCards.map((card) => (
+                <div key={card.id} className="bg-slate-900/60 p-4 rounded-xl border border-white/5 space-y-3">
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span className={`text-xs font-semibold font-mono flex items-center gap-1.5 ${card.accentText}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${card.accentDot}`} />
+                      {card.title}
+                    </span>
+                    {card.value.startsWith("未检测到") || card.value === "等待检测" ? (
+                      <AlertCircle className="text-slate-500 w-4 h-4" />
+                    ) : (
+                      <CheckCircle2 className="text-emerald-400 w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="font-mono text-sm font-medium tracking-tight bg-slate-950 px-3 py-2 rounded border border-white/5 select-all break-words">
+                    {card.value}
+                  </div>
+                  <p className="text-[11px] text-slate-500">{card.description}</p>
+                </div>
+              ))}
             </div>
 
-            {/* Column 2: Conda Virtual Envs */}
-            <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 space-y-3">
-              <div className="flex items-center justify-between text-slate-300">
-                <span className="text-xs font-semibold font-mono text-emerald-400 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
-                  CONDA ENVIRONMENTS
-                </span>
-                <Database className="text-indigo-400 w-4 h-4" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 space-y-3">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-xs font-semibold font-mono text-indigo-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
+                    CONDA ENVIRONMENTS
+                  </span>
+                  <Database className="text-indigo-400 w-4 h-4" />
+                </div>
+                <div className="max-h-[150px] overflow-y-auto space-y-1.5 pr-1 font-mono text-xs">
+                  {envStatus?.condaEnvironments && envStatus.condaEnvironments.length > 0 ? (
+                    envStatus.condaEnvironments.map((env, i) => (
+                      <div key={i} className="flex items-center justify-between bg-slate-950 px-2.5 py-1.5 rounded border border-white/5">
+                        <span className="text-slate-300 truncate font-semibold">conda:// {env}</span>
+                        <span className="text-[9px] bg-indigo-500/10 text-indigo-300 px-1 border border-indigo-500/20 rounded">Found</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-slate-500 text-center py-4">未检测到 Conda 环境</div>
+                  )}
+                </div>
               </div>
-              <div className="max-h-[120px] overflow-y-auto space-y-1.5 pr-1 font-mono text-xs">
-                {envStatus?.condaEnvironments && envStatus.condaEnvironments.length > 0 ? (
-                  envStatus.condaEnvironments.map((env, i) => (
-                    <div key={i} className="flex items-center justify-between bg-slate-950 px-2.5 py-1.5 rounded border border-white/5">
-                      <span className="text-slate-300 truncate font-semibold">conda:// {env}</span>
-                      <span className="text-[9px] bg-indigo-500/10 text-indigo-300 px-1 border border-indigo-500/20 rounded">Active</span>
+
+              <div className="lg:col-span-2 bg-slate-900/60 p-4 rounded-xl border border-white/5 space-y-3">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-xs font-semibold font-mono text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                    DEVELOPMENT TOOLCHAINS
+                  </span>
+                  <PackageCheck className="text-emerald-400 w-4 h-4" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {(envStatus?.toolchains || []).map((tool) => (
+                    <div key={tool.id} className="flex items-center justify-between gap-3 bg-slate-950 px-3 py-2 rounded-lg border border-white/5 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-300 truncate">{tool.name}</p>
+                        <p className="font-mono text-[10px] text-slate-500 truncate">{tool.version}</p>
+                      </div>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
+                        tool.available
+                          ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                          : "bg-slate-800 text-slate-500 border-white/5"
+                      }`}>
+                        {tool.available ? "READY" : "MISS"}
+                      </span>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-slate-500 text-center py-4">未检测到本地 Conda 系统发行项</div>
-                )}
+                  ))}
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500">支持检测 Anaconda/Miniconda 环境。可在快捷启动器中指向 conda 脚本路径。</p>
-            </div>
-
-            {/* Column 3: CUDA & Direct Acceleration details */}
-            <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 space-y-3">
-              <div className="flex items-center justify-between text-slate-300">
-                <span className="text-xs font-semibold font-mono text-emerald-400 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-rose-400 rounded-full" />
-                  ACCELERATOR ENGINE
-                </span>
-                <ShieldCheck className="text-rose-400 w-4 h-4" />
-              </div>
-              <div className="font-mono text-sm font-medium tracking-tight bg-slate-950 px-3 py-2 rounded border border-white/5">
-                {envStatus?.cudaVersion || "CUDA Core Toolkit v12.1"}
-              </div>
-              <p className="text-[11px] text-slate-500">检测到完整的 NVIDIA CUDA 加速库，可直接支撑 Pytorch DeepLearning 等高算力硬件调度加速。</p>
             </div>
           </div>
         )}

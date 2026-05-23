@@ -6,7 +6,7 @@ import { exec } from "child_process";
 import { createServer as createViteServer } from "vite";
 
 const app = express();
-const DEFAULT_PORT = 38173;
+const DEFAULT_PORT = 3030;
 
 function resolvePort(value: string | undefined): number {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -75,10 +75,10 @@ function ensureConfigExists() {
 // Ensure the standard config exists at runtime
 ensureConfigExists();
 
-// Helper to execute commands with promises
-function runCommand(cmd: string): Promise<string> {
+// Helper to execute commands with promises and a hard timeout
+function runCommand(cmd: string, timeoutMs = 3500): Promise<string> {
   return new Promise((resolve) => {
-    exec(cmd, (error, stdout, stderr) => {
+    exec(cmd, { timeout: timeoutMs, windowsHide: true, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         resolve("");
       } else {
@@ -176,16 +176,42 @@ app.get("/api/system/metrics", (req, res) => {
 
 // 3. Shell Environment Check Endpoint
 app.get("/api/system/env", async (req, res) => {
-  // Let's execute Python check
-  const pythonRes = await runCommand("python --version || python3 --version");
-  const condaRes = await runCommand("conda env list");
-  const cudaRes = await runCommand("nvidia-smi");
+  const [
+    pythonRes,
+    condaRes,
+    cudaRes,
+    javaRes,
+    javacRes,
+    nodeRes,
+    npmRes,
+    gitRes,
+    dockerRes,
+    dotnetRes,
+    rustRes,
+    cargoRes
+  ] = await Promise.all([
+    runCommand("python --version || python3 --version", 3000),
+    runCommand("conda env list", 3000),
+    runCommand("nvidia-smi", 3500),
+    runCommand("java -version", 3000),
+    runCommand("javac -version", 3000),
+    runCommand("node --version", 2500),
+    runCommand("npm --version", 2500),
+    runCommand("git --version", 2500),
+    runCommand("docker --version", 2500),
+    runCommand("dotnet --version", 2500),
+    runCommand("rustc --version", 2500),
+    runCommand("cargo --version", 2500)
+  ]);
+
+  const firstLine = (value: string) => value.split(/\r?\n/).find((line) => line.trim())?.trim() || "";
+  const normalizeVersion = (value: string, fallback: string) => firstLine(value) || fallback;
 
   // Format Python output cleanly
-  let pythonVersion = pythonRes.replace("Python ", "").trim() || "Python 3.10.12 (VirtualEnv Detected)";
+  let pythonVersion = pythonRes.replace("Python ", "").trim() || "未检测到 Python";
   
   // Format Conda environments list
-  let condaEnvironments: string[] = ["base", "pytorch_env", "mldev_v3"];
+  let condaEnvironments: string[] = [];
   if (condaRes) {
     const lines = condaRes.split("\n").filter(l => l.trim() && !l.startsWith("#"));
     if (lines.length > 0) {
@@ -197,7 +223,7 @@ app.get("/api/system/env", async (req, res) => {
   }
 
   // Format CUDA details
-  let cudaVersion = "CUDA Core Toolkit v12.1";
+  let cudaVersion = "未检测到 CUDA / NVIDIA SMI";
   if (cudaRes && cudaRes.includes("CUDA Version")) {
     const match = cudaRes.match(/CUDA Version:\s*([\d\.]+)/);
     if (match) {
@@ -205,10 +231,28 @@ app.get("/api/system/env", async (req, res) => {
     }
   }
 
+  const jdkVersions = [
+    normalizeVersion(javaRes.replace(/"/g, ""), ""),
+    normalizeVersion(javacRes.replace(/"/g, ""), "")
+  ].filter(Boolean);
+
+  const toolchains = [
+    { id: "node", name: "Node.js", version: normalizeVersion(nodeRes, "未检测到 Node.js"), available: Boolean(nodeRes) },
+    { id: "npm", name: "npm", version: normalizeVersion(npmRes, "未检测到 npm"), available: Boolean(npmRes) },
+    { id: "git", name: "Git", version: normalizeVersion(gitRes, "未检测到 Git"), available: Boolean(gitRes) },
+    { id: "docker", name: "Docker", version: normalizeVersion(dockerRes, "未检测到 Docker"), available: Boolean(dockerRes) },
+    { id: "dotnet", name: ".NET SDK", version: normalizeVersion(dotnetRes, "未检测到 .NET SDK"), available: Boolean(dotnetRes) },
+    { id: "rustc", name: "Rust", version: normalizeVersion(rustRes, "未检测到 Rust"), available: Boolean(rustRes) },
+    { id: "cargo", name: "Cargo", version: normalizeVersion(cargoRes, "未检测到 Cargo"), available: Boolean(cargoRes) }
+  ];
+
   res.json({
     pythonVersion,
     condaEnvironments,
-    cudaVersion
+    cudaVersion,
+    jdkVersions,
+    toolchains,
+    refreshedAt: new Date().toISOString()
   });
 });
 

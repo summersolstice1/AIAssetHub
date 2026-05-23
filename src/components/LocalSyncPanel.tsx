@@ -152,7 +152,7 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
   };
 
   const localIpAddr = networkInfo?.ips?.[0] || "192.168.1.105";
-  const localPortNumber = networkInfo?.port || 38173;
+  const localPortNumber = networkInfo?.port || 3030;
   const targetSyncUrl = `http://${localIpAddr}:${localPortNumber}`;
 
   return (

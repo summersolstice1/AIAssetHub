@@ -64,4 +64,14 @@ export interface EnvStatus {
   pythonVersion: string;
   condaEnvironments: string[];
   cudaVersion: string;
+  jdkVersions: string[];
+  toolchains: DevelopmentToolStatus[];
+  refreshedAt: string;
+}
+
+export interface DevelopmentToolStatus {
+  id: string;
+  name: string;
+  version: string;
+  available: boolean;
 }
