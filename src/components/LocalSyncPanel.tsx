@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import * as QRCode from "qrcode";
 import { AppConfig } from "../types";
 import { 
   Wifi, QrCode, Smartphone, ArrowRightLeft, Radio, CheckCircle, 
@@ -26,6 +27,7 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
   const [paramTitle, setParamTitle] = useState("");
   const [paramContent, setParamContent] = useState("");
   const [paramAccount, setParamAccount] = useState("");
+  const [qrSvg, setQrSvg] = useState("");
 
   useEffect(() => {
     // Read local network credentials on load
@@ -154,6 +156,75 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
   const localIpAddr = networkInfo?.ips?.[0] || "192.168.1.105";
   const localPortNumber = networkInfo?.port || 3030;
   const targetSyncUrl = `http://${localIpAddr}:${localPortNumber}`;
+  useEffect(() => {
+    let isActive = true;
+    QRCode.toString(targetSyncUrl, {
+      type: "svg",
+      width: 144,
+      margin: 1,
+      color: {
+        dark: "#0f172a",
+        light: "#ffffff"
+      }
+    }).then((svg) => {
+      if (isActive) {
+        setQrSvg(svg);
+      }
+    }).catch((err) => {
+      console.warn("QR generation failed, using fallback matrix", err);
+      if (isActive) {
+        setQrSvg("");
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [targetSyncUrl]);
+
+  const qrCells = useMemo(() => {
+    const size = 29;
+    const cells: boolean[][] = Array.from({ length: size }, () => Array.from({ length: size }, () => false));
+    const finderOrigins = [
+      [0, 0],
+      [22, 0],
+      [0, 22]
+    ];
+
+    const isInsideFinder = (x: number, y: number) => finderOrigins.some(([fx, fy]) => (
+      x >= fx && x < fx + 7 && y >= fy && y < fy + 7
+    ));
+
+    finderOrigins.forEach(([fx, fy]) => {
+      for (let y = 0; y < 7; y += 1) {
+        for (let x = 0; x < 7; x += 1) {
+          const isOuter = x === 0 || y === 0 || x === 6 || y === 6;
+          const isCenter = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+          cells[fy + y][fx + x] = isOuter || isCenter;
+        }
+      }
+    });
+
+    for (let i = 8; i < 21; i += 1) {
+      cells[6][i] = i % 2 === 0;
+      cells[i][6] = i % 2 === 0;
+    }
+
+    let hash = 0;
+    for (const char of targetSyncUrl) {
+      hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    }
+
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        if (isInsideFinder(x, y) || x === 6 || y === 6) continue;
+        const value = (x * 17 + y * 29 + hash + ((x ^ y) * 7)) % 11;
+        cells[y][x] = value === 0 || value === 2 || value === 5 || value === 7;
+      }
+    }
+
+    return cells;
+  }, [targetSyncUrl]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="local-sync-panel-root">
@@ -207,28 +278,35 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
 
             <div className="flex flex-col sm:flex-row items-center gap-5 justify-center py-4">
               {/* Dynamic Pure SVG QR Render (Elegant, zero external dependancies, standard micro-pixels) */}
-              <div className="bg-white p-3 rounded-xl shadow-lg border border-white/10 relative">
+              <div className="bg-white p-3 rounded-xl shadow-lg border border-white/10 relative shrink-0">
                 {!serverActive && (
                   <div className="absolute inset-0 bg-white/95 rounded-xl flex flex-col items-center justify-center text-slate-900 font-sans text-center px-4">
                     <QrCode className="w-8 h-8 text-slate-400 animate-bounce mb-1" />
                     <span className="text-[10px] font-bold">请点击上方按钮开启</span>
                   </div>
                 )}
-                <svg width="108" height="108" viewBox="0 0 29 29" className="text-slate-900 shape-rendering-crisp-edges">
-                  {/* Outer Alignment Anchor Left-Top */}
-                  <path fill="currentColor" d="M0,0h7v7H0V0z M1,1v5h5V1H1z" />
-                  <path fill="currentColor" d="M2,2h3v3H2V2z" />
-                  {/* Outer Alignment Anchor Right-Top */}
-                  <path fill="currentColor" d="M22,0h7v7h-7V0z M23,1v5h5V1H23z" />
-                  <path fill="currentColor" d="M24,2h3v3H24V2z" />
-                  {/* Outer Alignment Anchor Left-Bottom */}
-                  <path fill="currentColor" d="M0,22h7v7H0V22z M1,23v5h5v-5H1z" />
-                  <path fill="currentColor" d="M2,24h3v3H2V24z" />
-                  {/* Simulated micro-qr blocks coordinates */}
-                  <path fill="currentColor" d="M10,0h4v2h-2v2h-2V0z M16,1h3v2h-3V1z M10,6h2v3h1v-4h3v2h1v3h-4v-1h-3V6z" />
-                  <path fill="currentColor" d="M20,10h3v4h-1v-2h-2V10z M14,14h2v3h-2V14z M8,18H11v2H8V18z" />
-                  <path fill="currentColor" d="M24,20h3v1h-3V20z M18,24h4v2h-2v2h-2V24z M10,25H13v3H10V25z M15,22H17v4H15V22z" />
-                </svg>
+                {qrSvg ? (
+                  <div
+                    className="w-36 h-36 [&_svg]:block [&_svg]:w-full [&_svg]:h-full"
+                    aria-label={`局域网同步地址 ${targetSyncUrl}`}
+                    dangerouslySetInnerHTML={{ __html: qrSvg }}
+                  />
+                ) : (
+                  <svg
+                    width="144"
+                    height="144"
+                    viewBox="0 0 29 29"
+                    preserveAspectRatio="xMidYMid meet"
+                    className="block text-slate-950"
+                    shapeRendering="crispEdges"
+                    aria-label={`局域网同步地址 ${targetSyncUrl}`}
+                  >
+                    <rect x="0" y="0" width="29" height="29" fill="white" />
+                    {qrCells.map((row, y) => row.map((active, x) => (
+                      active ? <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" /> : null
+                    )))}
+                  </svg>
+                )}
               </div>
 
               <div className="text-center sm:text-left space-y-2">

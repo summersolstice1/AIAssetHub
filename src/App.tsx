@@ -170,7 +170,7 @@ export default function App() {
       <div className="max-w-[1400px] w-full mx-auto px-4 pt-4 sm:pt-6 flex-1 flex flex-col space-y-4 z-10 relative">
         
         {/* 🪟 Windows Signature Title Bar & Container Frame Header */}
-        <header className="glass-panel rounded-t-xl flex flex-col relative overflow-hidden text-slate-200 border-b-2 border-emerald-500/30" id="windows-app-shell-header">
+        <header className="glass-panel rounded-t-xl flex flex-col relative overflow-visible text-slate-200 border-b-2 border-emerald-500/30" id="windows-app-shell-header">
           
           {/* Title Bar Level */}
           <div className={`px-4 py-2 flex items-center justify-between border-b ${isDarkMode ? "border-white/5 bg-slate-950/80" : "border-slate-200 bg-white/90"} transition-all duration-300`} id="win-accented-top">
@@ -237,9 +237,6 @@ export default function App() {
           {/* Native classic Menu Bar Layout Level */}
           <div className={`px-4 py-1.5 flex flex-wrap items-center justify-between text-xs font-semibold gap-3 ${isDarkMode ? "bg-slate-900/40 text-slate-400" : "bg-slate-100/60 text-slate-600"}`}>
             <div className="flex items-center space-x-4">
-              <button className="hover:text-emerald-400 transition cursor-pointer pr-1">文件 (F)</button>
-              <button className="hover:text-emerald-400 transition cursor-pointer pr-1">编辑 (E)</button>
-              <button className="hover:text-emerald-400 transition cursor-pointer pr-1">视图 (V)</button>
               <button 
                 onClick={() => setActiveTab("sync")}
                 className="hover:text-emerald-400 transition cursor-pointer pr-1 text-emerald-500 font-bold"

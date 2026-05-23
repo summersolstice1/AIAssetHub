@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { AppConfig, PasswordItem, PasswordsConfig } from "../types";
-import { ShieldAlert, Plus, Eye, EyeOff, Copy, Trash2, KeyRound, Sparkles, CreditCard, Landmark, Globe } from "lucide-react";
+import { AppConfig, EncryptionMethod, PasswordItem, PasswordsConfig } from "../types";
+import { ShieldAlert, Plus, Eye, EyeOff, Copy, Trash2, KeyRound, Sparkles, CreditCard, Globe, Lock, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface SafeBoxProps {
@@ -10,10 +10,21 @@ interface SafeBoxProps {
 }
 
 type SafeBoxCat = keyof PasswordsConfig; // "software" | "web" | "finance"
+const SAFEBOX_UNLOCK_PASSWORD = "123";
+const SAFEBOX_UNLOCK_SESSION_KEY = "ai_asset_hub_safebox_unlocked";
+const encryptionOptions: Array<{ value: EncryptionMethod; label: string; description: string }> = [
+  { value: "AES-256-GCM", label: "AES-256-GCM", description: "推荐：适合本地凭据加密" },
+  { value: "AES-256-CBC", label: "AES-256-CBC", description: "兼容模式，需要后端 IV 管理" },
+  { value: "ChaCha20-Poly1305", label: "ChaCha20-Poly1305", description: "现代 AEAD 算法策略" },
+  { value: "Local-DPAPI", label: "Windows DPAPI", description: "绑定当前 Windows 用户" }
+];
 
 export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeBoxProps) {
   const [activeTab, setActiveTab] = useState<SafeBoxCat>("software");
   const [visibleItems, setVisibleItems] = useState<{ [id: string]: boolean }>({});
+  const [isUnlocked, setIsUnlocked] = useState(() => sessionStorage.getItem(SAFEBOX_UNLOCK_SESSION_KEY) === "true");
+  const [unlockPassword, setUnlockPassword] = useState("");
+  const [unlockError, setUnlockError] = useState("");
 
   // Local Add entry form states
   const [showAddForm, setShowAddForm] = useState(false);
@@ -21,6 +32,22 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [remark, setRemark] = useState("");
+  const [encryption, setEncryption] = useState<EncryptionMethod>("AES-256-GCM");
+
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (unlockPassword !== SAFEBOX_UNLOCK_PASSWORD) {
+      setUnlockError("保险箱密码不正确。");
+      onNotify("保险箱验证失败。", "error");
+      return;
+    }
+
+    sessionStorage.setItem(SAFEBOX_UNLOCK_SESSION_KEY, "true");
+    setIsUnlocked(true);
+    setUnlockPassword("");
+    setUnlockError("");
+    onNotify("保险箱验证通过。", "success");
+  };
 
   const handleCopy = (text: string, title: string) => {
     navigator.clipboard.writeText(text);
@@ -44,6 +71,7 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
       name,
       account,
       password,
+      encryption,
       remark: remark || "暂无特别备注"
     };
 
@@ -65,6 +93,7 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
     setAccount("");
     setPassword("");
     setRemark("");
+    setEncryption("AES-256-GCM");
     setShowAddForm(false);
     onNotify(`「${name}」已成功隔离归档在 [${getCategoryLabel(activeTab)}] 中。`, "success");
   };
@@ -103,6 +132,48 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
 
   const categories: SafeBoxCat[] = ["software", "web", "finance"];
 
+  if (!isUnlocked) {
+    return (
+      <div className="glass-panel p-8 rounded-2xl relative overflow-hidden" id="safe-box-auth-panel">
+        <div className="max-w-md mx-auto space-y-6">
+          <div className="flex flex-col items-center text-center space-y-3">
+            <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20">
+              <Lock className="w-9 h-9 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-100">本地账号保险箱验证</h3>
+              <p className="text-xs text-slate-400 mt-1">进入保险箱前需要输入访问密码。默认密码为 123，后续可接入设置模块修改。</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleUnlock} className="bg-slate-900/60 border border-white/5 rounded-2xl p-5 space-y-4">
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 font-mono">保险箱访问密码</label>
+              <input
+                type="password"
+                value={unlockPassword}
+                onChange={(e) => setUnlockPassword(e.target.value)}
+                placeholder="请输入保险箱密码"
+                autoFocus
+                className="w-full bg-slate-950 px-3 py-2 text-sm text-slate-200 border border-white/5 rounded-lg focus:border-emerald-500 outline-none"
+              />
+            </div>
+            {unlockError && (
+              <p className="text-xs text-rose-400">{unlockError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              解锁保险箱
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="glass-panel p-6 rounded-2xl relative overflow-hidden" id="safe-box-panel">
       {/* Absolute design accents */}
@@ -134,17 +205,6 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
           <Plus className="w-4 h-4" />
           <span>存入密码本</span>
         </button>
-      </div>
-
-      {/* Quick Alert Banner */}
-      <div className="bg-rose-950/20 border border-rose-500/15 rounded-xl p-3.5 mb-5.5 flex items-start space-x-3 text-xs leading-normal text-rose-200">
-        <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-slate-200">🔒 军工级本地单回路防卫设计</p>
-          <p className="text-slate-400 text-[11px] mt-0.5 text-justify">
-            本页保存的敏感凭据数据与您的 AI 个人配置，全数存于程序根目录中的 <code className="bg-rose-950/30 text-rose-300 font-mono px-1 rounded">config.json</code> 中。任何外部拦截器均无法读取内存，请安心沉淀多维账号。
-          </p>
-        </div>
       </div>
 
       {/* Adding Credential Form */}
@@ -207,6 +267,21 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
                 onChange={(e) => setRemark(e.target.value)}
                 className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 font-mono">加密方式</label>
+              <select
+                value={encryption}
+                onChange={(e) => setEncryption(e.target.value as EncryptionMethod)}
+                className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+              >
+                {encryptionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} - {option.description}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex justify-end space-x-2 text-xs pt-2">
@@ -343,7 +418,8 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
 
                 {/* Safe Card footer remark details */}
                 <div className="bg-slate-950/40 p-2 rounded-xl text-[10px] text-slate-400 font-sans border border-white/5 italic">
-                  🗒️ 备注: {item.remark || "暂无特别备注"}
+                  <div>备注: {item.remark || "暂无特别备注"}</div>
+                  <div className="mt-1 font-mono text-emerald-400">加密策略: {item.encryption || "AES-256-GCM"}</div>
                 </div>
               </div>
             );

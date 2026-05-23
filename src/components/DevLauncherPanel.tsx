@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AppConfig, DevApp } from "../types";
-import { Play, Plus, Trash2, FolderCode, Sparkles, AlertCircle, Laptop, Edit3, Check, X } from "lucide-react";
+import { Play, Plus, Trash2, FolderCode, Sparkles, AlertCircle, Laptop, Edit3, Check, X, Search, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface DevLauncherProps {
@@ -13,10 +13,16 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
+  const [tag, setTag] = useState("开发");
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPath, setEditPath] = useState("");
+  const [editTag, setEditTag] = useState("开发");
+  const [selectedTag, setSelectedTag] = useState("全部");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const defaultTags = ["开发", "游戏", "设计", "办公", "系统", "其他"];
 
   // Guess icon based on name
   const getAppTagLine = (appName: string) => {
@@ -28,6 +34,32 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
     if (lower.includes("python") || lower.includes("anaconda")) return "计算语言编译器环境";
     return "本地多合一辅助程序";
   };
+
+  const inferAppTag = (app: DevApp) => {
+    if (app.tag) return app.tag;
+    const lower = `${app.name} ${app.path}`.toLowerCase();
+    if (lower.includes("steam") || lower.includes("game") || lower.includes("epic")) return "游戏";
+    if (lower.includes("figma") || lower.includes("adobe") || lower.includes("design")) return "设计";
+    if (lower.includes("office") || lower.includes("word") || lower.includes("excel")) return "办公";
+    if (lower.includes("docker") || lower.includes("code") || lower.includes("git") || lower.includes("python")) return "开发";
+    return "其他";
+  };
+
+  const availableTags = [
+    "全部",
+    ...Array.from(new Set([...defaultTags, ...(config.dev_apps || []).map(inferAppTag)]))
+  ];
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredApps = (config.dev_apps || []).filter((app) => {
+    const appTag = inferAppTag(app);
+    const matchesTag = selectedTag === "全部" || appTag === selectedTag;
+    const matchesSearch = !normalizedSearch
+      || app.name.toLowerCase().includes(normalizedSearch)
+      || app.path.toLowerCase().includes(normalizedSearch)
+      || appTag.toLowerCase().includes(normalizedSearch);
+    return matchesTag && matchesSearch;
+  });
 
   const handleLaunch = async (app: DevApp) => {
     setLaunchingId(app.id);
@@ -68,12 +100,13 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
 
     const updatedDevApps: DevApp[] = [
       ...config.dev_apps,
-      { id: String(Date.now()), name, path }
+      { id: String(Date.now()), name, path, tag }
     ];
 
     onUpdateConfig({ ...config, dev_apps: updatedDevApps });
     setName("");
     setPath("");
+    setTag("开发");
     setShowAddForm(false);
     onNotify(`已完成「${name}」快捷启动卡片登记配置。`, "success");
   };
@@ -88,12 +121,14 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
     setEditingId(app.id);
     setEditName(app.name);
     setEditPath(app.path);
+    setEditTag(inferAppTag(app));
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditName("");
     setEditPath("");
+    setEditTag("开发");
   };
 
   const handleSaveEdit = (e: React.FormEvent, app: DevApp) => {
@@ -104,7 +139,7 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
     }
 
     const updatedDevApps = config.dev_apps.map((item) => (
-      item.id === app.id ? { ...item, name: editName, path: editPath } : item
+      item.id === app.id ? { ...item, name: editName, path: editPath, tag: editTag } : item
     ));
     onUpdateConfig({ ...config, dev_apps: updatedDevApps });
     onNotify(`启动项「${editName}」已更新。`, "success");
@@ -159,7 +194,7 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
               自定义本地执行绝对路径配置
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="text-[11px] text-slate-400 font-mono">软件/脚本标识名称</label>
                 <input
@@ -179,6 +214,18 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                   onChange={(e) => setPath(e.target.value)}
                   className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400 font-mono">应用标签</label>
+                <select
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                  className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                >
+                  {defaultTags.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="flex justify-end space-x-2 text-xs pt-1">
@@ -200,11 +247,41 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
         )}
       </AnimatePresence>
 
+      <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 mb-5 space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索软件名称、路径或标签"
+            className="w-full bg-slate-950 pl-9 pr-3 py-2 text-xs text-slate-200 border border-white/5 rounded-xl focus:border-emerald-500 outline-none"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {availableTags.map((item) => (
+            <button
+              key={item}
+              onClick={() => setSelectedTag(item)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] border transition ${
+                selectedTag === item
+                  ? "bg-emerald-500 text-slate-950 border-emerald-400 font-bold"
+                  : "bg-slate-950 text-slate-400 border-white/5 hover:text-emerald-400"
+              }`}
+            >
+              <Tag className="w-3 h-3" />
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Rounded Software Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {config.dev_apps && config.dev_apps.map((app) => {
+        {filteredApps.map((app) => {
           const isLaunching = launchingId === app.id;
           const isEditing = editingId === app.id;
+          const appTag = inferAppTag(app);
           return (
             <div
               key={app.id}
@@ -232,6 +309,10 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                     </h4>
                     <span className="text-[10px] text-slate-500 font-mono tracking-tight block mt-0.5 truncate uppercase">
                       {getAppTagLine(app.name)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 mt-1 text-[9px] text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                      <Tag className="w-2.5 h-2.5" />
+                      {appTag}
                     </span>
                   </div>
                 </div>
@@ -280,6 +361,15 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                     className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
                     placeholder="完整本地绝对路径"
                   />
+                  <select
+                    value={editTag}
+                    onChange={(e) => setEditTag(e.target.value)}
+                    className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                  >
+                    {defaultTags.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
                   <div className="flex justify-end space-x-2">
                     <button
                       type="button"
@@ -316,6 +406,11 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
             </div>
           );
         })}
+        {filteredApps.length === 0 && (
+          <div className="col-span-full py-12 text-center text-slate-500 text-xs font-mono">
+            没有找到符合当前标签或搜索条件的软件。
+          </div>
+        )}
       </div>
     </div>
   );

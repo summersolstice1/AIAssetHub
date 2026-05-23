@@ -25,7 +25,10 @@ export interface DevApp {
   id: string;
   name: string;
   path: string;
+  tag?: string;
 }
+
+export type EncryptionMethod = "AES-256-GCM" | "AES-256-CBC" | "ChaCha20-Poly1305" | "Local-DPAPI";
 
 export interface PasswordItem {
   id: string;
@@ -33,6 +36,7 @@ export interface PasswordItem {
   account: string;
   password?: string;
   remark?: string;
+  encryption?: EncryptionMethod;
 }
 
 export interface PasswordsConfig {
