@@ -28,6 +28,41 @@ export interface DevApp {
   tag?: string;
 }
 
+export type ManagedProjectScope = "online" | "offline" | "hybrid";
+export type ManagedProjectStatus = "planning" | "active" | "paused" | "done";
+
+export interface GithubRepositoryMeta {
+  owner: string;
+  repo: string;
+  fullName: string;
+  url: string;
+  description: string;
+  defaultBranch: string;
+  stars: number;
+  forks: number;
+  openIssues: number;
+  language: string;
+  private: boolean;
+  updatedAt: string;
+}
+
+export interface ManagedProject {
+  id: string;
+  name: string;
+  scope: ManagedProjectScope;
+  status: ManagedProjectStatus;
+  localPath?: string;
+  githubUrl?: string;
+  environment?: string;
+  content?: string;
+  remark?: string;
+  tags: string[];
+  github?: GithubRepositoryMeta;
+  updatedAt: string;
+}
+
+export type AppModuleId = "dashboard" | "system" | "launcher" | "safebox" | "sync" | "projects";
+
 export type EncryptionMethod = "AES-256-GCM" | "AES-256-CBC" | "ChaCha20-Poly1305" | "Local-DPAPI";
 
 export interface PasswordItem {
@@ -51,6 +86,11 @@ export interface AppConfig {
   prompts: PromptsConfig;
   dev_apps: DevApp[];
   passwords: PasswordsConfig;
+  managed_projects?: ManagedProject[];
+  module_order?: AppModuleId[];
+  user_profile?: {
+    email?: string;
+  };
 }
 
 export interface SystemMetrics {
@@ -78,4 +118,13 @@ export interface DevelopmentToolStatus {
   name: string;
   version: string;
   available: boolean;
+}
+
+export interface PortUsage {
+  protocol: string;
+  localAddress: string;
+  port: number;
+  state: string;
+  pid: string;
+  processName: string;
 }

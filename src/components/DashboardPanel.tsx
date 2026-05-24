@@ -1,10 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { AppConfig, AIApp, APIKey, PromptItem } from "../types";
 import { 
-  Chrome, ExternalLink, Key, Eye, EyeOff, Copy, Check, Plus, 
-  Terminal, Trash2, Edit3, BookOpen, Layers, CheckCircle 
+  Bot,
+  BookOpen,
+  BrainCircuit,
+  ChevronDown,
+  Chrome,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Image,
+  Key,
+  MessageCircle,
+  Plus,
+  Search,
+  Sparkles,
+  Terminal,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+type DashboardSubmodule = "aiApps" | "apiKeys" | "prompts";
 
 interface DashboardPanelProps {
   config: AppConfig;
@@ -33,6 +50,7 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
   const [newPromptContent, setNewPromptContent] = useState("");
   const [promptTargetCategory, setPromptTargetCategory] = useState("Code");
   const [customPromptCategory, setCustomPromptCategory] = useState("");
+  const [collapsedSubmodules, setCollapsedSubmodules] = useState<DashboardSubmodule[]>(["apiKeys", "prompts"]);
 
   useEffect(() => {
     setPromptTargetCategory(activePromptCategory);
@@ -161,6 +179,51 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
   };
 
   const promptCategories = Object.keys(config.prompts || { "Code": [], "Writing": [], "Design": [] });
+  const isSubmoduleCollapsed = (id: DashboardSubmodule) => collapsedSubmodules.includes(id);
+  const toggleSubmodule = (id: DashboardSubmodule) => {
+    setCollapsedSubmodules((current) => (
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    ));
+  };
+
+  const renderCollapseButton = (id: DashboardSubmodule) => {
+    const collapsed = isSubmoduleCollapsed(id);
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSubmodule(id)}
+        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900/70 text-slate-300 hover:text-emerald-300 hover:bg-slate-800 border border-white/5 transition-all"
+      >
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${collapsed ? "" : "rotate-180"}`} />
+        <span>{collapsed ? "展开" : "收纳"}</span>
+      </button>
+    );
+  };
+
+  const getAiAppVisual = (app: AIApp): { Icon: typeof Chrome; tone: string; hint: string } => {
+    const source = `${app.name} ${app.url}`.toLowerCase();
+    if (source.includes("chatgpt") || source.includes("openai")) {
+      return { Icon: MessageCircle, tone: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20", hint: "Chat" };
+    }
+    if (source.includes("claude") || source.includes("anthropic")) {
+      return { Icon: BrainCircuit, tone: "bg-orange-500/10 text-orange-300 border-orange-500/20", hint: "Reasoning" };
+    }
+    if (source.includes("gemini") || source.includes("google")) {
+      return { Icon: Sparkles, tone: "bg-sky-500/10 text-sky-300 border-sky-500/20", hint: "Assistant" };
+    }
+    if (source.includes("deepseek")) {
+      return { Icon: Bot, tone: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20", hint: "Coding" };
+    }
+    if (source.includes("perplexity") || source.includes("search")) {
+      return { Icon: Search, tone: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20", hint: "Search" };
+    }
+    if (source.includes("midjourney") || source.includes("image") || source.includes("stable")) {
+      return { Icon: Image, tone: "bg-pink-500/10 text-pink-300 border-pink-500/20", hint: "Image" };
+    }
+    return { Icon: Chrome, tone: "bg-slate-500/10 text-slate-300 border-white/10", hint: "Web" };
+  };
 
   return (
     <div className="space-y-6" id="dashboard-panel-root">
@@ -177,15 +240,24 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAddApp(!showAddApp)}
-            className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>添加应用</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {renderCollapseButton("aiApps")}
+            <button
+              onClick={() => setShowAddApp(!showAddApp)}
+              className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>添加应用</span>
+            </button>
+          </div>
         </div>
 
+        {isSubmoduleCollapsed("aiApps") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳 {config.ai_apps?.length || 0} 个 AI 应用入口。
+          </div>
+        ) : (
+        <>
         {/* Form panel to add apps */}
         <AnimatePresence>
           {showAddApp && (
@@ -233,47 +305,54 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
         </AnimatePresence>
 
         {/* Card Stream */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {config.ai_apps && config.ai_apps.map((app) => (
-            <div
-              key={app.id}
-              className="group p-4 bg-slate-900/40 rounded-xl border border-white/5 hover:border-emerald-500/30 flex items-center justify-between hover:bg-emerald-500/[0.02] transition-all relative"
-            >
-              <a
-                href={app.url}
-                target="_blank"
-                rel="referrer noopener"
-                className="flex items-center space-x-3 text-slate-300 hover:text-emerald-400 transition-colors flex-1"
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+          {config.ai_apps && config.ai_apps.map((app) => {
+            const visual = getAiAppVisual(app);
+            const Icon = visual.Icon;
+            return (
+              <div
+                key={app.id}
+                className="group min-h-[130px] p-3 bg-slate-900/25 rounded-xl border border-white/5 hover:border-emerald-500/25 hover:bg-slate-900/45 transition-all relative"
               >
-                <div className="bg-slate-850 p-2 rounded-lg text-slate-400 group-hover:text-emerald-400 group-hover:bg-emerald-500/10 transition-colors">
-                  <Chrome className="w-4 h-4" />
-                </div>
-                <div className="truncate">
-                  <p className="text-xs font-bold leading-normal text-slate-200 group-hover:text-emerald-400 truncate">{app.name}</p>
-                  <span className="text-[10px] text-slate-500 font-mono truncate hidden sm:block">网页访问</span>
-                </div>
-              </a>
-
-              <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleDeleteApp(app.id, app.name)}
-                  className="text-slate-500 hover:text-rose-400 p-1"
-                  title="移除此卡片"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
                 <a
                   href={app.url}
                   target="_blank"
-                  rel="referrer noopener"
-                  className="text-slate-500 hover:text-emerald-400 p-1"
+                  rel="noreferrer noopener"
+                  className="flex h-full flex-col items-center justify-center text-center text-slate-300 hover:text-emerald-300 transition-colors"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center transition-transform group-hover:-translate-y-0.5 ${visual.tone}`}>
+                    <Icon className="w-7 h-7" />
+                  </div>
+                  <p className="mt-2 w-full px-1 text-xs font-bold leading-normal text-slate-200 group-hover:text-emerald-300 truncate">
+                    {app.name}
+                  </p>
+                  <span className="mt-1 text-[10px] text-slate-500 font-mono truncate">{visual.hint}</span>
                 </a>
+
+                <div className="absolute top-2 right-2 flex items-center space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleDeleteApp(app.id, app.name)}
+                    className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800"
+                    title="移除此卡片"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <a
+                    href={app.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800"
+                    title="打开链接"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+        </>
+        )}
       </div>
 
       {/* 🔐 Sub Module 2: credentials key manager */}
@@ -289,15 +368,24 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAddKey(!showAddKey)}
-            className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>登记 Key</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {renderCollapseButton("apiKeys")}
+            <button
+              onClick={() => setShowAddKey(!showAddKey)}
+              className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>登记 Key</span>
+            </button>
+          </div>
         </div>
 
+        {isSubmoduleCollapsed("apiKeys") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳 {config.api_keys?.length || 0} 条 API Key 凭证。
+          </div>
+        ) : (
+        <>
         {/* Adding key Form */}
         <AnimatePresence>
           {showAddKey && (
@@ -412,6 +500,8 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
 
       {/* 📝 Sub Module 3: Prompt Repository Workspace */}
@@ -427,15 +517,24 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAddPrompt(!showAddPrompt)}
-            className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>沉淀 Prompt</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {renderCollapseButton("prompts")}
+            <button
+              onClick={() => setShowAddPrompt(!showAddPrompt)}
+              className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>沉淀 Prompt</span>
+            </button>
+          </div>
         </div>
 
+        {isSubmoduleCollapsed("prompts") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳 {promptCategories.length} 个 Prompt 标签，当前标签为 {activePromptCategory}。
+          </div>
+        ) : (
+        <>
         {/* Add prompt form */}
         <AnimatePresence>
           {showAddPrompt && (
@@ -595,6 +694,8 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
             </AnimatePresence>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

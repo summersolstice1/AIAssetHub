@@ -1,6 +1,25 @@
 import React, { useState } from "react";
 import { AppConfig, DevApp } from "../types";
-import { Play, Plus, Trash2, FolderCode, Sparkles, AlertCircle, Laptop, Edit3, Check, X, Search, Tag } from "lucide-react";
+import {
+  Box,
+  Briefcase,
+  Code2,
+  FolderCode,
+  Gamepad2,
+  Globe2,
+  Laptop,
+  Palette,
+  Plus,
+  Search,
+  Settings,
+  Sparkles,
+  SquareTerminal,
+  Tag,
+  Trash2,
+  Edit3,
+  Check,
+  X
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface DevLauncherProps {
@@ -24,7 +43,6 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
 
   const defaultTags = ["开发", "游戏", "设计", "办公", "系统", "其他"];
 
-  // Guess icon based on name
   const getAppTagLine = (appName: string) => {
     const lower = appName.toLowerCase();
     if (lower.includes("code") || lower.includes("vs")) return "IDE / 代码编辑器";
@@ -33,6 +51,19 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
     if (lower.includes("chrome") || lower.includes("browser")) return "高速双核网页浏览器";
     if (lower.includes("python") || lower.includes("anaconda")) return "计算语言编译器环境";
     return "本地多合一辅助程序";
+  };
+
+  const getLauncherIcon = (app: DevApp): typeof FolderCode => {
+    const source = `${app.name} ${app.path} ${inferAppTag(app)}`.toLowerCase();
+    if (source.includes("steam") || source.includes("epic") || source.includes("game") || source.includes("游戏")) return Gamepad2;
+    if (source.includes("figma") || source.includes("adobe") || source.includes("design") || source.includes("设计")) return Palette;
+    if (source.includes("office") || source.includes("word") || source.includes("excel") || source.includes("办公")) return Briefcase;
+    if (source.includes("chrome") || source.includes("browser") || source.includes("edge")) return Globe2;
+    if (source.includes("docker") || source.includes("container")) return Box;
+    if (source.includes("terminal") || source.includes("powershell") || source.includes("cmd")) return SquareTerminal;
+    if (source.includes("setting") || source.includes("control") || source.includes("系统")) return Settings;
+    if (source.includes("code") || source.includes("git") || source.includes("python") || source.includes("开发")) return Code2;
+    return FolderCode;
   };
 
   const inferAppTag = (app: DevApp) => {
@@ -155,8 +186,8 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
             <Laptop className="text-emerald-400 w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold font-display text-slate-100">开发软件快捷一键拉起</h3>
-            <p className="text-xs text-slate-400 mt-1">越过操作系统层级限制快进，直接由助手统一进程唤醒本地二进制及应用脚本</p>
+            <h3 className="text-base font-bold font-display text-slate-100">软件快捷启动</h3>
+            <p className="text-xs text-slate-400 mt-1">像桌面图标一样管理本地应用，双击启动。</p>
           </div>
         </div>
 
@@ -165,19 +196,8 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
           className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>添加自定软件</span>
+          <span>添加软件</span>
         </button>
-      </div>
-
-      {/* Launcher Tips banner */}
-      <div className="bg-indigo-950/20 border border-indigo-500/10 rounded-xl p-3.5 mb-5 flex items-start space-x-3 text-xs leading-normal text-indigo-200">
-        <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-slate-200">💡 跨端二进制拉起优势</p>
-          <p className="text-slate-400 text-[11px] mt-0.5">
-            当宿主环境为本地服务器或 Tauri 时，一键按下即可通过底层的 <code className="bg-indigo-950 px-1 py-0.5 rounded text-indigo-300">child_process.exec</code> 安全越级启动真实的本地 <code className="bg-indigo-950 px-1 py-0.5 rounded text-indigo-300">.exe</code> (Windows) 或 Bash Shell (macOS / Linux)。
-          </p>
-        </div>
       </div>
 
       {/* Add Launcher Entry Form */}
@@ -276,12 +296,13 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
         </div>
       </div>
 
-      {/* Rounded Software Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Desktop-style icon grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-4">
         {filteredApps.map((app) => {
           const isLaunching = launchingId === app.id;
           const isEditing = editingId === app.id;
           const appTag = inferAppTag(app);
+          const Icon = getLauncherIcon(app);
           return (
             <div
               key={app.id}
@@ -290,40 +311,21 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                   handleLaunch(app);
                 }
               }}
-              className="bg-slate-900/40 hover:bg-slate-900/60 border border-white/5 hover:border-emerald-500/20 p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-default"
-              title={isEditing ? "正在编辑启动项" : "双击启动软件"}
+              className={`bg-slate-900/20 hover:bg-slate-900/50 border border-transparent hover:border-emerald-500/20 p-3 rounded-xl group transition-all duration-200 relative overflow-hidden cursor-default ${
+                isEditing ? "col-span-3 sm:col-span-2 lg:col-span-3 min-h-[260px]" : "min-h-[150px]"
+              }`}
+              title={isEditing ? "正在编辑启动项" : `双击启动 ${app.name}`}
             >
-              {/* Launcher pulse indicators */}
               {isLaunching && (
                 <div className="absolute inset-0 bg-emerald-500/[0.04] animate-pulse pointer-events-none" />
               )}
-              
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3.5 min-w-0">
-                  <div className="bg-slate-950 p-2.5 rounded-xl text-slate-400 group-hover:text-emerald-400 border border-white/5 transition-colors">
-                    <FolderCode className="w-5 h-5" />
-                  </div>
-                  <div className="truncate">
-                    <h4 className="text-xs font-bold text-slate-200 truncate group-hover:text-emerald-400 transition-colors">
-                      {app.name}
-                    </h4>
-                    <span className="text-[10px] text-slate-500 font-mono tracking-tight block mt-0.5 truncate uppercase">
-                      {getAppTagLine(app.name)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 mt-1 text-[9px] text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
-                      <Tag className="w-2.5 h-2.5" />
-                      {appTag}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-1 shrink-0">
+              <div className="absolute right-1.5 top-1.5 z-10 flex items-center space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       beginEdit(app);
                     }}
-                    className="text-slate-500 hover:text-emerald-400 p-1 rounded hover:bg-slate-800 transition"
+                    className="text-slate-500 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition"
                     title="编辑路径"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
@@ -333,20 +335,28 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                       e.stopPropagation();
                       handleDeleteApp(app.id, app.name);
                     }}
-                    className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition"
+                    className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition"
                     title="注销启动配置"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                </div>
               </div>
 
               {isEditing ? (
                 <form
                   onSubmit={(e) => handleSaveEdit(e, app)}
-                  className="mt-4 pt-3 border-t border-white/5 space-y-3"
+                  className="pt-8 space-y-3"
                   onDoubleClick={(e) => e.stopPropagation()}
                 >
+                  <div className="flex items-center gap-3 pb-2 border-b border-white/5">
+                    <div className="w-10 h-10 rounded-xl bg-slate-950 border border-white/5 flex items-center justify-center text-emerald-400">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-200 truncate">编辑启动项</p>
+                      <p className="text-[10px] text-slate-500 truncate">{getAppTagLine(app.name)}</p>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     value={editName}
@@ -389,18 +399,22 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
                   </div>
                 </form>
               ) : (
-                <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 uppercase">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    双击启动
-                  </div>
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all ${
+                <div className="h-full flex flex-col items-center justify-center text-center select-none">
+                  <div className={`w-16 h-16 rounded-[18px] flex items-center justify-center border transition-all duration-200 ${
                     isLaunching
-                      ? "bg-slate-800 text-emerald-400 border-emerald-500/20"
-                      : "bg-emerald-500 text-slate-950 border-emerald-400/50 group-hover:scale-105"
+                      ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30 scale-95"
+                      : "bg-slate-950/70 text-slate-300 border-white/10 group-hover:text-emerald-300 group-hover:border-emerald-500/30 group-hover:-translate-y-0.5"
                   }`}>
-                    <Play className={`w-5 h-5 ${isLaunching ? "animate-ping text-emerald-400" : ""}`} />
+                    <Icon className={`w-8 h-8 ${isLaunching ? "animate-pulse" : ""}`} />
                   </div>
+                  <h4 className="mt-2 w-full truncate px-1 text-xs font-bold text-slate-200 group-hover:text-emerald-300 transition-colors">
+                    {app.name}
+                  </h4>
+                  <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-emerald-500/15 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                    <Tag className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{appTag}</span>
+                  </span>
+                  <span className="mt-1 text-[10px] text-slate-500">双击启动</span>
                 </div>
               )}
             </div>

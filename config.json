@@ -83,7 +83,8 @@
     {
       "id": "2",
       "name": "Docker Desktop",
-      "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe"
+      "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+      "tag": "开发"
     },
     {
       "id": "3",
@@ -133,5 +134,13 @@
         "remark": "外币结算测试备用卡"
       }
     ]
-  }
+  },
+  "module_order": [
+    "dashboard",
+    "system",
+    "launcher",
+    "safebox",
+    "projects",
+    "sync"
+  ]
 }

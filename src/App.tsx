@@ -1,14 +1,31 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { AppConfig } from "./types";
+import { AppConfig, AppModuleId } from "./types";
 import DashboardPanel from "./components/DashboardPanel";
 import SystemHubPanel from "./components/SystemHubPanel";
 import DevLauncherPanel from "./components/DevLauncherPanel";
 import SafeBoxPanel from "./components/SafeBoxPanel";
 import LocalSyncPanel from "./components/LocalSyncPanel";
+import DevModulePanel from "./components/DevModulePanel";
 import { getEnvironmentStatus } from "./services/systemService";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
-  Chrome, Cpu, Laptop, KeyRound, Radio, ArrowLeftRight, Clock, 
-  Settings, Sparkles, Smile, ShieldCheck, AlertCircle, RefreshCw,
+  BriefcaseBusiness, Chrome, Cpu, Laptop, KeyRound, ArrowLeftRight, Clock, 
+  GripVertical, Sparkles, Smile, ShieldCheck, AlertCircle, RefreshCw,
   Sun, Moon, Monitor, X, HelpCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -19,18 +36,71 @@ interface ToastMessage {
   type: "success" | "error" | "info";
 }
 
+type AppTab = AppModuleId;
+
+interface NavItem {
+  id: AppModuleId;
+  label: string;
+  icon: typeof Chrome;
+}
+
+const navItems: NavItem[] = [
+  { id: "dashboard", label: "AI 看板与导航", icon: Chrome },
+  { id: "system", label: "系统监控与环境", icon: Cpu },
+  { id: "launcher", label: "软件快捷启动", icon: Laptop },
+  { id: "safebox", label: "本地账号保险箱", icon: KeyRound },
+  { id: "sync", label: "LAN 双端互传", icon: ArrowLeftRight },
+  { id: "projects", label: "项目管理", icon: BriefcaseBusiness },
+];
+
+const defaultModuleOrder = navItems.map((item) => item.id);
+
+function normalizeModuleOrder(order?: AppModuleId[]): AppModuleId[] {
+  const normalized: AppModuleId[] = [];
+  const seen = new Set<AppModuleId>();
+
+  (order || []).forEach((id) => {
+    if (defaultModuleOrder.includes(id) && !seen.has(id)) {
+      normalized.push(id);
+      seen.add(id);
+    }
+  });
+
+  defaultModuleOrder.forEach((id) => {
+    if (!seen.has(id)) {
+      normalized.push(id);
+      seen.add(id);
+    }
+  });
+
+  return normalized;
+}
+
+function isAppModuleId(value: string): value is AppModuleId {
+  return defaultModuleOrder.includes(value as AppModuleId);
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "system" | "launcher" | "safebox" | "sync">("dashboard");
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [systemTime, setSystemTime] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
+  const [draggedModule, setDraggedModule] = useState<AppModuleId | null>(null);
+  const [dragOverModule, setDragOverModule] = useState<AppModuleId | null>(null);
+
+  const orderedNavItems = useMemo(() => {
+    const order = normalizeModuleOrder(config?.module_order);
+    return order
+      .map((id) => navItems.find((item) => item.id === id))
+      .filter((item): item is NavItem => Boolean(item));
+  }, [config?.module_order]);
 
   // Dynamic twinkling stars coordinates
   const starsArray = useMemo(() => {
-    return Array.from({ length: 45 }).map((_, i) => ({
+    return Array.from({ length: 24 }).map((_, i) => ({
       id: i,
       top: `${Math.random() * 100}%`,
       left: `${Math.random() * 100}%`,
@@ -105,6 +175,49 @@ export default function App() {
     }
   };
 
+  const handleModuleDragStart = (event: React.DragEvent<HTMLDivElement>, id: AppModuleId) => {
+    setDraggedModule(id);
+    setDragOverModule(id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
+  };
+
+  const handleModuleDragOver = (event: React.DragEvent<HTMLDivElement>, id: AppModuleId) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverModule(id);
+  };
+
+  const handleModuleDrop = (event: React.DragEvent<HTMLDivElement>, targetId: AppModuleId) => {
+    event.preventDefault();
+    const rawSourceId = draggedModule || event.dataTransfer.getData("text/plain");
+    setDraggedModule(null);
+    setDragOverModule(null);
+
+    if (!config || !isAppModuleId(rawSourceId) || rawSourceId === targetId) {
+      return;
+    }
+
+    const currentOrder = normalizeModuleOrder(config.module_order);
+    const sourceIndex = currentOrder.indexOf(rawSourceId);
+    const targetIndex = currentOrder.indexOf(targetId);
+
+    if (sourceIndex === -1 || targetIndex === -1) {
+      return;
+    }
+
+    const nextOrder = [...currentOrder];
+    const [movedId] = nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, movedId);
+    handleUpdateConfig({ ...config, module_order: nextOrder });
+    triggerToast("模块顺序已保存。", "success");
+  };
+
+  const handleModuleDragEnd = () => {
+    setDraggedModule(null);
+    setDragOverModule(null);
+  };
+
   // Fun Windows Style Frame event reactions
   const handleMinimize = () => {
     triggerToast("窗口已收起至 Windows 全局任务栏系统托盘后台中 (模拟状态)", "info");
@@ -120,7 +233,7 @@ export default function App() {
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
-    triggerToast(`模式已切换为：${!isDarkMode ? "✨ 漫天璀璨繁星深邃模式" : "☀️ 蔚蓝清柔无暇日照模式"}`, "success");
+    triggerToast(`模式已切换为：${!isDarkMode ? "星空深色模式" : "日光浅色模式"}`, "success");
   };
 
   if (loading || !config) {
@@ -141,7 +254,8 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen starry-universe ${!isDarkMode ? "light-theme" : ""} text-[#e2e8f0] flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300 font-sans relative antialiased transition-all duration-500 pb-12`}>
+    <TooltipProvider delayDuration={150}>
+    <div className={`min-h-screen starry-universe ${isDarkMode ? "dark" : "light-theme"} text-[#e2e8f0] flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300 font-sans relative antialiased transition-all duration-500 pb-12`}>
       
       {/* 🌌 Space Twinkling Star Sparks Rendering (Only available during night mode) */}
       {isDarkMode && (
@@ -160,9 +274,6 @@ export default function App() {
               } as React.CSSProperties}
             />
           ))}
-          {/* Galactic Cosmic Soft Nebulas */}
-          <div className="absolute top-[5%] left-[25%] w-[450px] h-[450px] bg-emerald-500/[0.04] rounded-full blur-[140px]" />
-          <div className="absolute bottom-[20%] right-[10%] w-[500px] h-[500px] bg-indigo-500/[0.03] rounded-full blur-[160px]" />
         </div>
       )}
 
@@ -180,8 +291,8 @@ export default function App() {
                 <Monitor className="w-4 h-4 shrink-0" />
               </div>
               <div className="flex items-center space-x-1.5 font-mono text-xs font-semibold">
-                <span className={`${isDarkMode ? "text-emerald-400" : "text-emerald-600"} font-bold`}>C:\Windows\System32\ai_hub.exe</span>
-                <span className="text-slate-500 italic hidden md:inline">- [管理员模式 / Administrator Mode]</span>
+                <span className={`${isDarkMode ? "text-emerald-400" : "text-emerald-600"} font-bold`}>AIAssetHub.exe</span>
+                <span className="text-slate-500 italic hidden md:inline">Local Desktop Hub</span>
               </div>
             </div>
 
@@ -241,7 +352,7 @@ export default function App() {
                 onClick={() => setActiveTab("sync")}
                 className="hover:text-emerald-400 transition cursor-pointer pr-1 text-emerald-500 font-bold"
               >
-                局域网直连 (L)
+                同步
               </button>
               <button 
                 onClick={loadConfiguration}
@@ -249,22 +360,22 @@ export default function App() {
                 title="自动拉取最新持久化配置"
               >
                 <RefreshCw className="w-3 h-3" />
-                安全刷新 (R)
+                刷新
               </button>
               <button 
                 onClick={() => setShowAbout(true)} 
                 className="hover:text-emerald-400 transition cursor-pointer pr-1 flex items-center gap-1 text-emerald-400 font-bold"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
-                关于 (A)
+                关于
               </button>
             </div>
 
             {/* Bottom mini status badge */}
             <div className="flex items-center space-x-3 text-xs font-mono">
-              <div className="bg-emerald-500/10 px-2.5 py-0.5 rounded text-emerald-400 border border-emerald-500/20 uppercase tracking-widest text-[9px] font-bold">
-                Win-NT 11.0 Build
-              </div>
+              <Badge variant="outline" className="bg-emerald-500/10 px-2.5 py-0.5 rounded text-emerald-400 border-emerald-500/20 uppercase tracking-widest text-[9px] font-bold">
+                Local
+              </Badge>
               <div className="flex items-center space-x-2 text-[11px]">
                 <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span className="text-slate-400 select-all">{systemTime}</span>
@@ -280,18 +391,18 @@ export default function App() {
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h1 className="text-lg font-bold font-display text-white tracking-wide">AI & Asset Hub 桌面交互版</h1>
-                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded font-semibold tracking-wider uppercase border border-emerald-500/30">
-                    MVP Enterprise
-                  </span>
+                  <h1 className="text-lg font-bold font-display text-white tracking-wide">AI & Asset Hub</h1>
+                  <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded font-semibold tracking-wider uppercase border border-emerald-500/30 hover:bg-emerald-500/20">
+                    MVP
+                  </Badge>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">面向 Windows 工作站优化的效率中枢：内置高频 AI 助手导航、密码保险箱与局域网移动端高速互传机制</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">本地优先的 AI、资产、系统与同步工作台。</p>
               </div>
             </div>
 
             {/* Config metadata readout */}
             <div className="flex items-center space-x-2 text-xs font-mono text-slate-400 shrink-0 bg-black/40 p-2 rounded-xl border border-white/5">
-              <span className="text-slate-500">主端用户 PID:</span>
+              <span className="text-slate-500">用户:</span>
               <span className="text-emerald-400 font-bold max-w-[120px] truncate" title={config.user_profile?.email || "Admin User"}>
                 {config.user_profile?.email || "Admin User"}
               </span>
@@ -304,74 +415,57 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4.5 flex-1 items-start">
           
           {/* Column Navigation Menu Bar (Tab Panel Selector) */}
-          <nav className="lg:col-span-1 glass-panel p-2.5 rounded-xl flex flex-row lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible border border-slate-700/50" id="centralized-navigation">
-            
-            {/* Tab: Dashboard */}
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex-1 lg:flex-initial flex items-center justify-center lg:justify-start space-x-3 px-3.5 py-3 rounded-lg text-xs font-semibold tracking-wider transition-all duration-300 ${
-                activeTab === "dashboard"
-                  ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-bold"
-                  : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
-              }`}
-            >
-              <Chrome className={`w-4 h-4 shrink-0 ${activeTab === "dashboard" ? "text-emerald-400" : ""}`} />
-              <span className="truncate">AI 看板与导航</span>
-            </button>
-
-            {/* Tab: System environment */}
-            <button
-              onClick={() => setActiveTab("system")}
-              className={`flex-1 lg:flex-initial flex items-center justify-center lg:justify-start space-x-3 px-3.5 py-3 rounded-lg text-xs font-semibold tracking-wider transition-all duration-300 ${
-                activeTab === "system"
-                  ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-bold"
-                  : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
-              }`}
-            >
-              <Cpu className={`w-4 h-4 shrink-0 ${activeTab === "system" ? "text-emerald-400 animate-spin" : ""}`} />
-              <span className="truncate">系统监控与环境</span>
-            </button>
-
-            {/* Tab: Executable quick launcher */}
-            <button
-              onClick={() => setActiveTab("launcher")}
-              className={`flex-1 lg:flex-initial flex items-center justify-center lg:justify-start space-x-3 px-3.5 py-3 rounded-lg text-xs font-semibold tracking-wider transition-all duration-300 ${
-                activeTab === "launcher"
-                  ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-bold"
-                  : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
-              }`}
-            >
-              <Laptop className={`w-4 h-4 shrink-0 ${activeTab === "launcher" ? "text-emerald-400" : ""}`} />
-              <span className="truncate">软件快捷启动</span>
-            </button>
-
-            {/* Tab: Safe box */}
-            <button
-              onClick={() => setActiveTab("safebox")}
-              className={`flex-1 lg:flex-initial flex items-center justify-center lg:justify-start space-x-3 px-3.5 py-3 rounded-lg text-xs font-semibold tracking-wider transition-all duration-300 ${
-                activeTab === "safebox"
-                  ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-bold"
-                  : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
-              }`}
-            >
-              <KeyRound className={`w-4 h-4 shrink-0 ${activeTab === "safebox" ? "text-emerald-400" : ""}`} />
-              <span className="truncate">本地账号保险箱</span>
-            </button>
-
-            {/* Tab: Network synchronization */}
-            <button
-              onClick={() => setActiveTab("sync")}
-              className={`flex-1 lg:flex-initial flex items-center justify-center lg:justify-start space-x-3 px-3.5 py-3 rounded-lg text-xs font-semibold tracking-wider transition-all duration-300 ${
-                activeTab === "sync"
-                  ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-bold"
-                  : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
-              }`}
-            >
-              <ArrowLeftRight className={`w-4 h-4 shrink-0 ${activeTab === "sync" ? "text-emerald-400" : ""}`} />
-              <span className="truncate">LAN 双端互传</span>
-            </button>
-
-          </nav>
+          <Card className="lg:col-span-1 glass-panel p-2.5 rounded-xl border-slate-700/50">
+            <div className="hidden lg:flex items-center justify-between px-2 pb-2 text-[10px] font-mono text-slate-500">
+              <span>拖拽排序</span>
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+            <nav className="flex flex-row lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible" id="centralized-navigation">
+              {orderedNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                const isDragging = draggedModule === item.id;
+                const isDropTarget = dragOverModule === item.id && draggedModule !== item.id;
+                return (
+                  <div
+                    key={item.id}
+                    data-module-id={item.id}
+                    draggable
+                    onDragStart={(event) => handleModuleDragStart(event, item.id)}
+                    onDragOver={(event) => handleModuleDragOver(event, item.id)}
+                    onDrop={(event) => handleModuleDrop(event, item.id)}
+                    onDragEnd={handleModuleDragEnd}
+                    className={`flex-1 lg:flex-initial rounded-lg transition-all ${
+                      isDragging ? "opacity-45 scale-[0.98]" : ""
+                    } ${
+                      isDropTarget ? "ring-1 ring-emerald-400/60 bg-emerald-500/10" : ""
+                    }`}
+                    title="按住拖拽可调整模块顺序"
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant={isActive ? "secondary" : "ghost"}
+                          onClick={() => setActiveTab(item.id)}
+                          className={`w-full justify-center lg:justify-start gap-2 px-3 py-5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-grab active:cursor-grabbing ${
+                            isActive
+                              ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 shadow-sm"
+                              : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
+                          }`}
+                        >
+                          <GripVertical className="hidden lg:block w-3.5 h-3.5 shrink-0 text-slate-500 group-hover:text-slate-300" />
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-emerald-400" : ""} ${item.id === "system" && isActive ? "animate-spin" : ""}`} />
+                          <span className="truncate">{item.label}</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{item.label} · 拖拽可排序</TooltipContent>
+                    </Tooltip>
+                  </div>
+                );
+              })}
+            </nav>
+          </Card>
 
           {/* Column Main Content display area */}
           <main className="lg:col-span-4" id="primary-workspace">
@@ -416,73 +510,65 @@ export default function App() {
                     onNotify={triggerToast}
                   />
                 )}
+                {activeTab === "projects" && (
+                  <DevModulePanel
+                    config={config}
+                    onUpdateConfig={handleUpdateConfig}
+                    onNotify={triggerToast}
+                  />
+                )}
               </motion.div>
             </AnimatePresence>
           </main>
         </div>
       </div>
 
-      {/* 🪟 Real High-Fidelity Windows About NT Dialog Modal */}
-      <AnimatePresence>
-        {showAbout && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" id="about-modal-backdrop">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md bg-slate-950 border border-slate-700/80 rounded-lg shadow-2xl overflow-hidden font-sans text-xs text-slate-200"
-            >
-              {/* About Title Bar */}
-              <div className="bg-slate-900 px-4 py-2 flex items-center justify-between border-b border-white/5">
-                <span className="font-bold flex items-center gap-1.5 font-mono text-[11px] text-emerald-400">
-                  <Monitor className="w-3.5 h-3.5 text-emerald-400" />
-                  关于 Windows System: AI & Asset Hub 整合中心
-                </span>
-                <button 
-                  onClick={() => setShowAbout(false)} 
-                  className="text-slate-400 hover:text-white font-bold text-sm transition-colors cursor-pointer"
-                >
-                  ✕
-                </button>
+      <Dialog open={showAbout} onOpenChange={setShowAbout}>
+        <DialogContent className="glass-panel max-w-md border-slate-700/80 text-slate-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-mono text-sm text-emerald-400">
+              <Monitor className="w-4 h-4" />
+              关于 AI & Asset Hub
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-xs">
+            <div className="flex items-start gap-4">
+              <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-emerald-400 shrink-0">
+                <Sparkles className="w-8 h-8 animate-pulse text-emerald-400" />
               </div>
-              
-              {/* About content body */}
-              <div className="p-5 space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-emerald-400 shrink-0">
-                    <Sparkles className="w-8 h-8 animate-pulse text-emerald-400" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-white">AI & Asset Hub MVP Enterprise</p>
-                    <p className="text-slate-400">版本号 22H2 build 2026.5.23 (Windows 企业版)</p>
-                    <p className="text-slate-400">系统拥有者：{config.user_profile?.email || "Sonwani Surbhi"}</p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900 p-3.5 rounded-lg border border-white/5 space-y-2 font-mono text-[11px] text-slate-300">
-                  <p className="text-slate-400">● 运行架构: Windows NT Kernel Client Porting Host</p>
-                  <p className="text-slate-400">● 持久化通道: express_db / config.json file system</p>
-                  <p className="text-slate-400">● 本地局域网: Mobile Gateway Sync Listener (Configured Port)</p>
-                  <p className="text-slate-400">● 安全系数: SHA-256 加密保险箱数据库</p>
-                </div>
-
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  本整合系统已将所有需要的数据在当前局域网(WLAN/LAN)与主设备中持久化同步。通过顶部的<b>模式转换</b>系统，可在深色闪烁繁星环境与清风日光环境切换，维护完美的开发和管理舒适感。
-                </p>
-
-                <div className="flex justify-end pt-1">
-                  <button 
-                    onClick={() => setShowAbout(false)}
-                    className="bg-emerald-400 hover:bg-emerald-500 text-slate-950 font-bold px-5 py-1.5 rounded-lg text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-                  >
-                    确定
-                  </button>
-                </div>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-white">AI & Asset Hub MVP Enterprise</p>
+                <p className="text-slate-400">版本号 22H2 build 2026.5.23 (Windows 企业版)</p>
+                <p className="text-slate-400">系统拥有者：{config.user_profile?.email || "Sonwani Surbhi"}</p>
               </div>
-            </motion.div>
+            </div>
+
+            <Separator className="bg-white/10" />
+
+            <div className="bg-slate-900 p-3.5 rounded-lg border border-white/5 space-y-2 font-mono text-[11px] text-slate-300">
+              <p className="text-slate-400">运行架构: Windows NT Kernel Client Porting Host</p>
+              <p className="text-slate-400">持久化通道: express_db / config.json file system</p>
+              <p className="text-slate-400">本地局域网: Mobile Gateway Sync Listener (Configured Port)</p>
+              <p className="text-slate-400">安全系数: SHA-256 加密保险箱数据库</p>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              本整合系统已将所有需要的数据在当前局域网(WLAN/LAN)与主设备中持久化同步。通过顶部的模式转换系统，可在深色闪烁繁星环境与清风日光环境切换。
+            </p>
+
+            <div className="flex justify-end pt-1">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setShowAbout(false)}
+                className="bg-emerald-400 hover:bg-emerald-500 text-slate-950"
+              >
+                确定
+              </Button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </DialogContent>
+      </Dialog>
 
       {/* Floating high-fidelity Micro-Toast Notice Board queue */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm w-full font-sans" id="toast-board">
@@ -518,5 +604,6 @@ export default function App() {
       </div>
 
     </div>
+    </TooltipProvider>
   );
 }

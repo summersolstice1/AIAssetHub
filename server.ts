@@ -52,6 +52,8 @@ const default_config = {
     { "id": "2", "name": "Docker Desktop", "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe" },
     { "id": "3", "name": "GitKraken", "path": "C:\\Program Files\\GitKraken\\gitkraken.exe" }
   ],
+  "module_order": ["dashboard", "system", "launcher", "safebox", "sync", "projects"],
+  "managed_projects": [],
   "passwords": {
     "software": [
       { "id": "1", "name": "GitHub Account", "account": "developer-pro", "password": "ghp_secure_credential_token_abc123", "remark": "主开发账号，已开启 2FA 认证" },
@@ -88,6 +90,210 @@ function runCommand(cmd: string, timeoutMs = 3500): Promise<string> {
   });
 }
 
+interface PortUsageEntry {
+  protocol: string;
+  localAddress: string;
+  port: number;
+  state: string;
+  pid: string;
+  processName: string;
+}
+
+interface GithubRepoRef {
+  owner: string;
+  repo: string;
+}
+
+interface GithubApiRepository {
+  full_name: string;
+  html_url: string;
+  description: string | null;
+  default_branch: string;
+  stargazers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+  language: string | null;
+  private: boolean;
+  updated_at: string;
+}
+
+function parseGithubRepoUrl(rawUrl: string): GithubRepoRef | null {
+  const normalized = rawUrl.trim().replace(/\.git$/, "");
+  if (!normalized) return null;
+
+  const sshMatch = normalized.match(/^git@github\.com:([^/]+)\/([^/]+)$/i);
+  if (sshMatch) {
+    return { owner: sshMatch[1], repo: sshMatch[2] };
+  }
+
+  try {
+    const url = normalized.startsWith("http")
+      ? new URL(normalized)
+      : new URL(`https://${normalized}`);
+
+    if (url.hostname.toLowerCase() !== "github.com") {
+      return null;
+    }
+
+    const [owner, repo] = url.pathname.split("/").filter(Boolean);
+    if (!owner || !repo) return null;
+    return { owner, repo };
+  } catch {
+    return null;
+  }
+}
+
+function parseLocalEndpoint(endpoint: string): { localAddress: string; port: number } | null {
+  const trimmed = endpoint.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith("[")) {
+    const match = trimmed.match(/^\[(.*)]:(\d+)$/);
+    if (!match) return null;
+    return { localAddress: match[1], port: Number.parseInt(match[2], 10) };
+  }
+
+  const separatorIndex = trimmed.lastIndexOf(":");
+  if (separatorIndex === -1) return null;
+
+  const portText = trimmed.slice(separatorIndex + 1);
+  if (!/^\d+$/.test(portText)) return null;
+
+  return {
+    localAddress: trimmed.slice(0, separatorIndex),
+    port: Number.parseInt(portText, 10)
+  };
+}
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === "\"" && nextChar === "\"") {
+      current += "\"";
+      index += 1;
+      continue;
+    }
+
+    if (char === "\"") {
+      insideQuotes = !insideQuotes;
+      continue;
+    }
+
+    if (char === "," && !insideQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values.map((value) => value.trim());
+}
+
+function parseTaskList(output: string): Map<string, string> {
+  const processMap = new Map<string, string>();
+
+  output.split(/\r?\n/).forEach((line) => {
+    const columns = parseCsvLine(line);
+    const processName = columns[0];
+    const pid = columns[1];
+
+    if (processName && pid) {
+      processMap.set(pid, processName);
+    }
+  });
+
+  return processMap;
+}
+
+function parseWindowsNetstat(output: string, processMap: Map<string, string>): PortUsageEntry[] {
+  const entries: PortUsageEntry[] = [];
+
+  output.split(/\r?\n/).forEach((line) => {
+    const columns = line.trim().split(/\s+/);
+    const protocol = columns[0]?.toUpperCase();
+
+    if (protocol !== "TCP" && protocol !== "UDP") return;
+
+    const endpoint = parseLocalEndpoint(columns[1] || "");
+    if (!endpoint) return;
+
+    const state = protocol === "TCP" ? columns[3] || "UNKNOWN" : "BOUND";
+    const pid = protocol === "TCP" ? columns[4] || "" : columns[3] || "";
+    if (!pid) return;
+
+    entries.push({
+      protocol,
+      localAddress: endpoint.localAddress,
+      port: endpoint.port,
+      state,
+      pid,
+      processName: processMap.get(pid) || "Unknown"
+    });
+  });
+
+  return entries;
+}
+
+function parseUnixNetstat(output: string): PortUsageEntry[] {
+  const entries: PortUsageEntry[] = [];
+
+  output.split(/\r?\n/).forEach((line) => {
+    const columns = line.trim().split(/\s+/);
+    const protocol = columns[0]?.toUpperCase();
+
+    if (!protocol?.startsWith("TCP") && !protocol?.startsWith("UDP")) return;
+
+    const endpoint = parseLocalEndpoint(columns[3] || "");
+    if (!endpoint) return;
+
+    const state = protocol.startsWith("TCP") ? columns[5] || "UNKNOWN" : "BOUND";
+    const processColumn = columns.find((column) => /\d+\//.test(column)) || "";
+    const [pid = "", processName = "Unknown"] = processColumn.split("/", 2);
+
+    entries.push({
+      protocol: protocol.startsWith("TCP") ? "TCP" : "UDP",
+      localAddress: endpoint.localAddress,
+      port: endpoint.port,
+      state,
+      pid: pid || "-",
+      processName: processName || "Unknown"
+    });
+  });
+
+  return entries;
+}
+
+async function collectPortUsage(): Promise<PortUsageEntry[]> {
+  const isWindows = os.platform() === "win32";
+  const [netstatOutput, taskListOutput] = await Promise.all([
+    runCommand(isWindows ? "netstat -ano" : "netstat -tunlp", 5000),
+    isWindows ? runCommand("tasklist /fo csv /nh", 5000) : Promise.resolve("")
+  ]);
+
+  if (!netstatOutput) {
+    return [];
+  }
+
+  const processMap = parseTaskList(taskListOutput);
+  const entries = isWindows
+    ? parseWindowsNetstat(netstatOutput, processMap)
+    : parseUnixNetstat(netstatOutput);
+
+  return entries
+    .filter((entry) => Number.isFinite(entry.port) && entry.port > 0)
+    .sort((first, second) => first.port - second.port || first.protocol.localeCompare(second.protocol))
+    .slice(0, 120);
+}
+
 // 1. Config management endpoints
 app.get("/api/config", (req, res) => {
   try {
@@ -106,6 +312,53 @@ app.post("/api/config", (req, res) => {
     res.json({ success: true, message: "Configuration updated successfully." });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to write configuration: " + error.message });
+  }
+});
+
+app.get("/api/github/repo", async (req, res) => {
+  const rawUrl = typeof req.query.url === "string" ? req.query.url : "";
+  const repoRef = parseGithubRepoUrl(rawUrl);
+
+  if (!repoRef) {
+    return res.status(400).json({ error: "Invalid GitHub repository URL." });
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(`https://api.github.com/repos/${repoRef.owner}/${repoRef.repo}`, {
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "AI-Asset-Hub"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `GitHub repository request failed with status ${response.status}.` });
+    }
+
+    const repo = (await response.json()) as Partial<GithubApiRepository>;
+    res.json({
+      owner: repoRef.owner,
+      repo: repoRef.repo,
+      fullName: repo.full_name || `${repoRef.owner}/${repoRef.repo}`,
+      url: repo.html_url || `https://github.com/${repoRef.owner}/${repoRef.repo}`,
+      description: repo.description || "",
+      defaultBranch: repo.default_branch || "main",
+      stars: repo.stargazers_count || 0,
+      forks: repo.forks_count || 0,
+      openIssues: repo.open_issues_count || 0,
+      language: repo.language || "Unknown",
+      private: Boolean(repo.private),
+      updatedAt: repo.updated_at || new Date().toISOString()
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown GitHub request error";
+    res.status(502).json({ error: "Failed to read GitHub repository metadata: " + message });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
@@ -172,6 +425,16 @@ app.get("/api/system/metrics", (req, res) => {
     cudaAvailable: true
   };
   res.json(response);
+});
+
+app.get("/api/system/ports", async (req, res) => {
+  try {
+    const ports = await collectPortUsage();
+    res.json(ports);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown port probe error";
+    res.status(500).json({ error: "Failed to inspect local ports: " + message });
+  }
 });
 
 // 3. Shell Environment Check Endpoint
