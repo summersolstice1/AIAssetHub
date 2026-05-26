@@ -255,7 +255,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={150}>
-    <div className={`min-h-screen starry-universe ${isDarkMode ? "dark" : "light-theme"} text-[#e2e8f0] flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300 font-sans relative antialiased transition-all duration-500 pb-12`}>
+    <div className={`hub-root min-h-screen starry-universe ${isDarkMode ? "dark" : "light-theme"} text-[#e2e8f0] flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300 font-sans relative antialiased transition-all duration-500 pb-12`}>
       
       {/* 🌌 Space Twinkling Star Sparks Rendering (Only available during night mode) */}
       {isDarkMode && (
@@ -278,13 +278,13 @@ export default function App() {
       )}
 
       {/* 🖥️ Windows OS Main Window Shell */}
-      <div className="max-w-[1400px] w-full mx-auto px-4 pt-4 sm:pt-6 flex-1 flex flex-col space-y-4 z-10 relative">
+      <div className="hub-shell max-w-[1400px] w-full mx-auto px-4 pt-4 sm:pt-6 flex-1 flex flex-col space-y-4 z-10 relative">
         
         {/* 🪟 Windows Signature Title Bar & Container Frame Header */}
-        <header className="glass-panel rounded-t-xl flex flex-col relative overflow-visible text-slate-200 border-b-2 border-emerald-500/30" id="windows-app-shell-header">
+        <header className="hub-window glass-panel rounded-t-xl flex flex-col relative overflow-visible text-slate-200 border-b-2 border-emerald-500/30" id="windows-app-shell-header">
           
           {/* Title Bar Level */}
-          <div className={`px-4 py-2 flex items-center justify-between border-b ${isDarkMode ? "border-white/5 bg-slate-950/80" : "border-slate-200 bg-white/90"} transition-all duration-300`} id="win-accented-top">
+          <div className={`hub-titlebar px-4 py-2 flex items-center justify-between border-b ${isDarkMode ? "border-white/5 bg-slate-950/80" : "border-slate-200 bg-white/90"} transition-all duration-300`} id="win-accented-top">
             {/* Windows Left Icon and Path */}
             <div className="flex items-center space-x-2.5">
               <div className="bg-emerald-500 p-1.5 rounded-md text-slate-950">
@@ -301,7 +301,7 @@ export default function App() {
               {/* Day/Night Theme Control Accent Button */}
               <button 
                 onClick={toggleTheme}
-                className={`flex items-center space-x-1.5 px-3 py-1 mr-4 rounded-md text-xs font-semibold font-mono transition-transform active:scale-95 border ${
+                className={`hub-theme-toggle flex items-center space-x-1.5 px-3 py-1 mr-4 rounded-md text-xs font-semibold font-mono transition-transform active:scale-95 border ${
                   isDarkMode 
                     ? "bg-slate-900/80 hover:bg-slate-800 border-white/10 text-amber-400" 
                     : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800"
@@ -323,21 +323,21 @@ export default function App() {
 
               <button 
                 onClick={handleMinimize}
-                className="w-11 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="hub-window-control w-11 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
                 title="最小化"
               >
                 <span className="text-base">─</span>
               </button>
               <button 
                 onClick={handleMaximize}
-                className="w-11 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="hub-window-control w-11 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
                 title="最大化"
               >
                 <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded-sm hover:border-white" />
               </button>
               <button 
                 onClick={handleClose}
-                className="w-11 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#E81123] hover:font-bold transition-colors"
+                className="hub-window-control hub-window-close w-11 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#E81123] hover:font-bold transition-colors"
                 title="安全关闭"
               >
                 <X className="w-4 h-4" />
@@ -346,7 +346,7 @@ export default function App() {
           </div>
 
           {/* Native classic Menu Bar Layout Level */}
-          <div className={`px-4 py-1.5 flex flex-wrap items-center justify-between text-xs font-semibold gap-3 ${isDarkMode ? "bg-slate-900/40 text-slate-400" : "bg-slate-100/60 text-slate-600"}`}>
+          <div className={`hub-menubar px-4 py-1.5 flex flex-wrap items-center justify-between text-xs font-semibold gap-3 ${isDarkMode ? "bg-slate-900/40 text-slate-400" : "bg-slate-100/60 text-slate-600"}`}>
             <div className="flex items-center space-x-4">
               <button 
                 onClick={() => setActiveTab("sync")}
@@ -384,7 +384,7 @@ export default function App() {
           </div>
 
           {/* Sub-header inside our window containing App Brand & metadata details */}
-          <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-950/10 backdrop-blur border-t border-white/5 relative">
+          <div className="hub-hero p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-950/10 backdrop-blur border-t border-white/5 relative">
             <div className="flex items-center space-x-4">
               <div className="bg-emerald-500/25 text-emerald-300 p-2.5 rounded-xl border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)] shrink-0">
                 <Sparkles className="w-5.5 h-5.5 animate-pulse" />
@@ -401,7 +401,7 @@ export default function App() {
             </div>
 
             {/* Config metadata readout */}
-            <div className="flex items-center space-x-2 text-xs font-mono text-slate-400 shrink-0 bg-black/40 p-2 rounded-xl border border-white/5">
+            <div className="hub-user-pill flex items-center space-x-2 text-xs font-mono text-slate-400 shrink-0 bg-black/40 p-2 rounded-xl border border-white/5">
               <span className="text-slate-500">用户:</span>
               <span className="text-emerald-400 font-bold max-w-[120px] truncate" title={config.user_profile?.email || "Admin User"}>
                 {config.user_profile?.email || "Admin User"}
@@ -412,10 +412,10 @@ export default function App() {
         </header>
 
         {/* Dynamic Double-column Body section */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4.5 flex-1 items-start">
+        <div className="hub-workspace-grid grid grid-cols-1 lg:grid-cols-5 gap-4.5 flex-1 items-start">
           
           {/* Column Navigation Menu Bar (Tab Panel Selector) */}
-          <Card className="lg:col-span-1 glass-panel p-2.5 rounded-xl border-slate-700/50">
+          <Card className="hub-nav-panel lg:col-span-1 glass-panel p-2.5 rounded-xl border-slate-700/50">
             <div className="hidden lg:flex items-center justify-between px-2 pb-2 text-[10px] font-mono text-slate-500">
               <span>拖拽排序</span>
               <GripVertical className="w-3.5 h-3.5" />
@@ -435,7 +435,7 @@ export default function App() {
                     onDragOver={(event) => handleModuleDragOver(event, item.id)}
                     onDrop={(event) => handleModuleDrop(event, item.id)}
                     onDragEnd={handleModuleDragEnd}
-                    className={`flex-1 lg:flex-initial rounded-lg transition-all ${
+                    className={`hub-nav-item flex-1 lg:flex-initial rounded-lg transition-all ${
                       isDragging ? "opacity-45 scale-[0.98]" : ""
                     } ${
                       isDropTarget ? "ring-1 ring-emerald-400/60 bg-emerald-500/10" : ""
@@ -448,9 +448,9 @@ export default function App() {
                           type="button"
                           variant={isActive ? "secondary" : "ghost"}
                           onClick={() => setActiveTab(item.id)}
-                          className={`w-full justify-center lg:justify-start gap-2 px-3 py-5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-grab active:cursor-grabbing ${
+                          className={`hub-nav-button w-full justify-center lg:justify-start gap-2 px-3 py-5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-grab active:cursor-grabbing ${
                             isActive
-                              ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 shadow-sm"
+                              ? "is-active bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 shadow-sm"
                               : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 border-l-[3px] border-transparent"
                           }`}
                         >
@@ -468,7 +468,7 @@ export default function App() {
           </Card>
 
           {/* Column Main Content display area */}
-          <main className="lg:col-span-4" id="primary-workspace">
+          <main className="hub-content lg:col-span-4" id="primary-workspace">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -524,7 +524,7 @@ export default function App() {
       </div>
 
       <Dialog open={showAbout} onOpenChange={setShowAbout}>
-        <DialogContent className="glass-panel max-w-md border-slate-700/80 text-slate-200">
+        <DialogContent className="hub-dialog glass-panel max-w-md border-slate-700/80 text-slate-200">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-mono text-sm text-emerald-400">
               <Monitor className="w-4 h-4" />
@@ -579,7 +579,7 @@ export default function App() {
               initial={{ opacity: 0, x: 50, scale: 0.95 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.95 }}
-              className={`p-4 rounded-xl border text-xs shadow-2xl flex items-start space-x-3 backdrop-blur-md pointer-events-auto ${
+              className={`hub-toast p-4 rounded-xl border text-xs shadow-2xl flex items-start space-x-3 backdrop-blur-md pointer-events-auto ${
                 t.type === "success"
                   ? "bg-emerald-950/90 border-emerald-500/30 text-emerald-200"
                   : t.type === "error"
