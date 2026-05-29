@@ -21,6 +21,14 @@ export interface PromptsConfig {
   [category: string]: PromptItem[];
 }
 
+export interface OnlinePromptSource {
+  id: string;
+  suitable_use: string;
+  description: string;
+  name: string;
+  url: string;
+}
+
 export interface DevApp {
   id: string;
   name: string;
@@ -84,6 +92,7 @@ export interface AppConfig {
   ai_apps: AIApp[];
   api_keys: APIKey[];
   prompts: PromptsConfig;
+  online_prompt_sources?: OnlinePromptSource[];
   dev_apps: DevApp[];
   passwords: PasswordsConfig;
   managed_projects?: ManagedProject[];

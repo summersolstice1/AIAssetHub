@@ -6,6 +6,7 @@ import {
   RefreshCw, Upload, Download, Terminal, Plus, ShieldCheck, AlertCircle 
 } from "lucide-react";
 import { motion } from "motion/react";
+import CollapseToggle from "./CollapseToggle";
 
 interface LocalSyncProps {
   config: AppConfig;
@@ -13,11 +14,14 @@ interface LocalSyncProps {
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
 }
 
+type LocalSyncSubmodule = "server" | "companion";
+
 export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: LocalSyncProps) {
   const [serverActive, setServerActive] = useState(false);
   const [networkInfo, setNetworkInfo] = useState<{ ips: string[]; port: number; platform: string } | null>(null);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [collapsedSubmodules, setCollapsedSubmodules] = useState<LocalSyncSubmodule[]>([]);
 
   // Companion Mock State (Mobile device simulation inputs)
   const [companionCategory, setCompanionCategory] = useState("prompt"); // "prompt" | "password" | "ai_app"
@@ -28,6 +32,14 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
   const [paramContent, setParamContent] = useState("");
   const [paramAccount, setParamAccount] = useState("");
   const [qrSvg, setQrSvg] = useState("");
+  const isSubmoduleCollapsed = (id: LocalSyncSubmodule) => collapsedSubmodules.includes(id);
+  const toggleSubmodule = (id: LocalSyncSubmodule) => {
+    setCollapsedSubmodules((current) => (
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    ));
+  };
 
   useEffect(() => {
     // Read local network credentials on load
@@ -231,18 +243,27 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
       {/* Column A: PC Main Wireless Server Controls */}
       <div className="glass-panel p-6 rounded-2xl relative overflow-hidden flex flex-col justify-between" id="pc-server-box">
         <div className="space-y-5">
-          <div className="flex items-center space-x-3">
-            <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
-              <Wifi className="text-emerald-400 w-5 h-5" />
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                <Wifi className="text-emerald-400 w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold font-display text-slate-100">电脑同步服务端 (Express LAN Broker)</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  打通电脑与移动设备（iOS / Android）的隔离，一键在局域网内广播无线互传服务
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-bold font-display text-slate-100">电脑同步服务端 (Express LAN Broker)</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                打通电脑与移动设备（iOS / Android）的隔离，一键在局域网内广播无线互传服务
-              </p>
-            </div>
+            <CollapseToggle collapsed={isSubmoduleCollapsed("server")} onToggle={() => toggleSubmodule("server")} />
           </div>
 
+          {isSubmoduleCollapsed("server") ? (
+            <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+              已收纳电脑同步服务端：当前状态 {serverActive ? `运行中，端口 ${localPortNumber}` : "已关闭"}，日志 {syncLogs.length} 条。
+            </div>
+          ) : (
+          <>
           {/* Toggle Block */}
           <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex items-center justify-between">
             <div className="space-y-1">
@@ -319,9 +340,12 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Sync Console Real-time Logs */}
+        {!isSubmoduleCollapsed("server") && (
         <div className="mt-5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono text-slate-500 uppercase flex items-center gap-1">
@@ -338,28 +362,38 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Column B: Local Area Device Interaction Companion Sandbox */}
       <div className="glass-panel p-6 rounded-2xl relative overflow-hidden bg-slate-900/10 border-l border-emerald-500/15" id="mobile-companion-box">
         {/* Top visual Header */}
-        <div className="flex items-center space-x-3 border-b border-white/5 pb-4.5 mb-5.5">
-          <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 text-emerald-400">
-            <Smartphone className="w-5 h-5" />
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-white/5 pb-4.5 mb-5.5">
+          <div className="flex items-center space-x-3">
+            <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 text-emerald-400">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold font-display text-slate-100 flex items-center gap-1.5">
+                手机端同步工作台
+                <span className="text-[10px] bg-slate-800 text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono">
+                  Companion Screen
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                模拟/运行手机浏览器中的投送页面。即使没有物理手机，也可通过此板块直接测试跨设备互传功能！
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-bold font-display text-slate-100 flex items-center gap-1.5">
-              手机端同步工作台
-              <span className="text-[10px] bg-slate-800 text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono">
-                Companion Screen
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              模拟/运行手机浏览器中的投送页面。即使没有物理手机，也可通过此板块直接测试跨设备互传功能！
-            </p>
-          </div>
+          <CollapseToggle collapsed={isSubmoduleCollapsed("companion")} onToggle={() => toggleSubmodule("companion")} />
         </div>
 
+        {isSubmoduleCollapsed("companion") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳手机端同步工作台：当前投送类型为 {companionCategory}，标题 {paramTitle.trim() ? `「${paramTitle.trim()}」` : "未填写"}。
+          </div>
+        ) : (
+        <>
         {/* Device Wrapper Representation for high aesthetics */}
         <div className="bg-slate-950 p-4 rounded-2xl border-4 border-slate-700 relative shadow-2xl space-y-4 max-w-sm mx-auto">
           {/* Audio/Speaker Dynamic bar */}
@@ -516,6 +550,8 @@ export default function LocalSyncPanel({ config, onUpdateConfig, onNotify }: Loc
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

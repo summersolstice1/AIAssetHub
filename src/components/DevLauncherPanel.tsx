@@ -21,12 +21,15 @@ import {
   X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import CollapseToggle from "./CollapseToggle";
 
 interface DevLauncherProps {
   config: AppConfig;
   onUpdateConfig: (newConfig: AppConfig) => void;
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
 }
+
+type LauncherSubmodule = "filters" | "apps";
 
 export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: DevLauncherProps) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -40,8 +43,17 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
   const [editTag, setEditTag] = useState("开发");
   const [selectedTag, setSelectedTag] = useState("全部");
   const [searchQuery, setSearchQuery] = useState("");
+  const [collapsedSubmodules, setCollapsedSubmodules] = useState<LauncherSubmodule[]>([]);
 
   const defaultTags = ["开发", "游戏", "设计", "办公", "系统", "其他"];
+  const isSubmoduleCollapsed = (id: LauncherSubmodule) => collapsedSubmodules.includes(id);
+  const toggleSubmodule = (id: LauncherSubmodule) => {
+    setCollapsedSubmodules((current) => (
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    ));
+  };
 
   const getAppTagLine = (appName: string) => {
     const lower = appName.toLowerCase();
@@ -268,35 +280,62 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
       </AnimatePresence>
 
       <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 mb-5 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索软件名称、路径或标签"
-            className="w-full bg-slate-950 pl-9 pr-3 py-2 text-xs text-slate-200 border border-white/5 rounded-xl focus:border-emerald-500 outline-none"
-          />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-slate-100 font-display">标签与搜索筛选</h4>
+            <p className="text-xs text-slate-400 mt-1">按软件名称、路径或标签快速过滤桌面图标。</p>
+          </div>
+          <CollapseToggle collapsed={isSubmoduleCollapsed("filters")} onToggle={() => toggleSubmodule("filters")} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {availableTags.map((item) => (
-            <button
-              key={item}
-              onClick={() => setSelectedTag(item)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] border transition ${
-                selectedTag === item
-                  ? "bg-emerald-500 text-slate-950 border-emerald-400 font-bold"
-                  : "bg-slate-950 text-slate-400 border-white/5 hover:text-emerald-400"
-              }`}
-            >
-              <Tag className="w-3 h-3" />
-              {item}
-            </button>
-          ))}
-        </div>
+        {isSubmoduleCollapsed("filters") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳筛选器：当前标签「{selectedTag}」，搜索词 {searchQuery.trim() ? `「${searchQuery.trim()}」` : "为空"}。
+          </div>
+        ) : (
+          <>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索软件名称、路径或标签"
+                className="w-full bg-slate-950 pl-9 pr-3 py-2 text-xs text-slate-200 border border-white/5 rounded-xl focus:border-emerald-500 outline-none"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {availableTags.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setSelectedTag(item)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] border transition ${
+                    selectedTag === item
+                      ? "bg-emerald-500 text-slate-950 border-emerald-400 font-bold"
+                      : "bg-slate-950 text-slate-400 border-white/5 hover:text-emerald-400"
+                  }`}
+                >
+                  <Tag className="w-3 h-3" />
+                  {item}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Desktop-style icon grid */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h4 className="text-sm font-bold text-slate-100 font-display">桌面图标启动区</h4>
+          <p className="text-xs text-slate-400 mt-1">当前展示 {filteredApps.length} / {(config.dev_apps || []).length} 个启动项。</p>
+        </div>
+        <CollapseToggle collapsed={isSubmoduleCollapsed("apps")} onToggle={() => toggleSubmodule("apps")} />
+      </div>
+      {isSubmoduleCollapsed("apps") ? (
+        <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+          已收纳软件快捷启动桌面：当前条件下有 {filteredApps.length} 个应用可双击启动。
+        </div>
+      ) : (
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-4">
         {filteredApps.map((app) => {
           const isLaunching = launchingId === app.id;
@@ -426,6 +465,7 @@ export default function DevLauncherPanel({ config, onUpdateConfig, onNotify }: D
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { AppConfig, EncryptionMethod, PasswordItem, PasswordsConfig } from "../types";
 import { ShieldAlert, Plus, Eye, EyeOff, Copy, Trash2, KeyRound, Sparkles, CreditCard, Globe, Lock, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import CollapseToggle from "./CollapseToggle";
 
 interface SafeBoxProps {
   config: AppConfig;
@@ -10,6 +11,7 @@ interface SafeBoxProps {
 }
 
 type SafeBoxCat = keyof PasswordsConfig; // "software" | "web" | "finance"
+type SafeBoxSubmodule = "categories" | "credentials";
 const SAFEBOX_UNLOCK_PASSWORD = "123";
 const SAFEBOX_UNLOCK_SESSION_KEY = "ai_asset_hub_safebox_unlocked";
 const encryptionOptions: Array<{ value: EncryptionMethod; label: string; description: string }> = [
@@ -25,6 +27,7 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
   const [isUnlocked, setIsUnlocked] = useState(() => sessionStorage.getItem(SAFEBOX_UNLOCK_SESSION_KEY) === "true");
   const [unlockPassword, setUnlockPassword] = useState("");
   const [unlockError, setUnlockError] = useState("");
+  const [collapsedSubmodules, setCollapsedSubmodules] = useState<SafeBoxSubmodule[]>([]);
 
   // Local Add entry form states
   const [showAddForm, setShowAddForm] = useState(false);
@@ -33,6 +36,14 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
   const [password, setPassword] = useState("");
   const [remark, setRemark] = useState("");
   const [encryption, setEncryption] = useState<EncryptionMethod>("AES-256-GCM");
+  const isSubmoduleCollapsed = (id: SafeBoxSubmodule) => collapsedSubmodules.includes(id);
+  const toggleSubmodule = (id: SafeBoxSubmodule) => {
+    setCollapsedSubmodules((current) => (
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    ));
+  };
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,6 +142,7 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
   };
 
   const categories: SafeBoxCat[] = ["software", "web", "finance"];
+  const activeCredentialCount = (config.passwords[activeTab] || []).length;
 
   if (!isUnlocked) {
     return (
@@ -303,37 +315,64 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
         )}
       </AnimatePresence>
 
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-bold text-slate-100 font-display">凭据分类标签</h4>
+          <p className="text-xs text-slate-400 mt-1">按软件、网站、资产分类查看本地密码本。</p>
+        </div>
+        <CollapseToggle collapsed={isSubmoduleCollapsed("categories")} onToggle={() => toggleSubmodule("categories")} />
+      </div>
+
       {/* Custom Tabs Navigation Header */}
-      <div className="flex items-center space-x-1.5 bg-slate-950 p-1.5 rounded-xl border border-white/5 mb-5">
-        {categories.map((tab) => {
-          const isActive = tab === activeTab;
-          const count = (config?.passwords?.[tab] || []).length;
-          return (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setShowAddForm(false);
-              }}
-              className={`flex-1 flex items-center justify-center space-x-2 text-xs py-2 rounded-lg font-medium transition-all ${
-                isActive
-                  ? "bg-slate-800 text-emerald-400 shadow-lg font-bold border border-emerald-500/20"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
-              }`}
-            >
-              {renderCategoryIcon(tab)}
-              <span>{getCategoryLabel(tab)}</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                isActive ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-900 text-slate-500"
-              }`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
+      {isSubmoduleCollapsed("categories") ? (
+        <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 mb-5">
+          已收纳分类标签：当前分类「{getCategoryLabel(activeTab)}」，共 {activeCredentialCount} 条凭据。
+        </div>
+      ) : (
+        <div className="flex items-center space-x-1.5 bg-slate-950 p-1.5 rounded-xl border border-white/5 mb-5">
+          {categories.map((tab) => {
+            const isActive = tab === activeTab;
+            const count = (config?.passwords?.[tab] || []).length;
+            return (
+              <button
+                key={tab}
+                onClick={() => {
+                  setActiveTab(tab);
+                  setShowAddForm(false);
+                }}
+                className={`flex-1 flex items-center justify-center space-x-2 text-xs py-2 rounded-lg font-medium transition-all ${
+                  isActive
+                    ? "bg-slate-800 text-emerald-400 shadow-lg font-bold border border-emerald-500/20"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+                }`}
+              >
+                {renderCategoryIcon(tab)}
+                <span>{getCategoryLabel(tab)}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                  isActive ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-900 text-slate-500"
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-bold text-slate-100 font-display">当前分类凭据卡片</h4>
+          <p className="text-xs text-slate-400 mt-1">当前分类共 {activeCredentialCount} 条，支持显示、复制和删除。</p>
+        </div>
+        <CollapseToggle collapsed={isSubmoduleCollapsed("credentials")} onToggle={() => toggleSubmodule("credentials")} />
       </div>
 
       {/* Grid of credential Cards */}
+      {isSubmoduleCollapsed("credentials") ? (
+        <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+          已收纳「{getCategoryLabel(activeTab)}」凭据列表，共 {activeCredentialCount} 条。
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {(!config.passwords[activeTab] || config.passwords[activeTab].length === 0) ? (
           <div className="col-span-full py-12 text-slate-500 text-center flex flex-col items-center justify-center space-y-2 font-mono text-xs">
@@ -426,6 +465,7 @@ export default function SafeBoxPanel({ config, onUpdateConfig, onNotify }: SafeB
           })
         )}
       </div>
+      )}
     </div>
   );
 }

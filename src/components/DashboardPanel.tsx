@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { AppConfig, AIApp, APIKey, PromptItem } from "../types";
+import { AppConfig, AIApp, APIKey, PromptItem, OnlinePromptSource } from "../types";
 import { 
   Bot,
   BookOpen,
@@ -10,8 +10,10 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Globe2,
   Image,
   Key,
+  Link as LinkIcon,
   MessageCircle,
   Plus,
   Search,
@@ -22,6 +24,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 
 type DashboardSubmodule = "aiApps" | "apiKeys" | "prompts";
+type PromptWorkspaceMode = "local" | "online";
 
 interface DashboardPanelProps {
   config: AppConfig;
@@ -29,11 +32,21 @@ interface DashboardPanelProps {
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
 }
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsedUrl = new URL(value);
+    return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function DashboardPanel({ config, onUpdateConfig, onNotify }: DashboardPanelProps) {
   // Local toggle states for each API key's password visibility
   const [visibleKeys, setVisibleKeys] = useState<{ [id: string]: boolean }>({});
   // Current active category for Prompt Library
   const [activePromptCategory, setActivePromptCategory] = useState<string>("Code");
+  const [activePromptMode, setActivePromptMode] = useState<PromptWorkspaceMode>("local");
 
   // Local Form state to add elements
   const [showAddApp, setShowAddApp] = useState(false);
@@ -50,12 +63,23 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
   const [newPromptContent, setNewPromptContent] = useState("");
   const [promptTargetCategory, setPromptTargetCategory] = useState("Code");
   const [customPromptCategory, setCustomPromptCategory] = useState("");
+  const [showAddOnlinePromptSource, setShowAddOnlinePromptSource] = useState(false);
+  const [newPromptSourceUseCase, setNewPromptSourceUseCase] = useState("");
+  const [newPromptSourceDescription, setNewPromptSourceDescription] = useState("");
+  const [newPromptSourceName, setNewPromptSourceName] = useState("");
+  const [newPromptSourceUrl, setNewPromptSourceUrl] = useState("");
   const [collapsedSubmodules, setCollapsedSubmodules] = useState<DashboardSubmodule[]>(["apiKeys", "prompts"]);
 
   useEffect(() => {
     setPromptTargetCategory(activePromptCategory);
     setCustomPromptCategory("");
   }, [activePromptCategory]);
+
+  const promptCategories = Object.keys(config.prompts || { "Code": [], "Writing": [], "Design": [] });
+  const onlinePromptSources = config.online_prompt_sources || [];
+  const localPromptTotal = promptCategories.reduce((total, category) => {
+    return total + (config.prompts[category]?.length || 0);
+  }, 0);
 
   // Copy clip helper
   const handleCopy = (text: string, title: string) => {
@@ -178,7 +202,43 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
     onNotify(`Prompt 提示词「${title}」已废弃删除。`, "info");
   };
 
-  const promptCategories = Object.keys(config.prompts || { "Code": [], "Writing": [], "Design": [] });
+  const handleAddOnlinePromptSource = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const suitableUse = newPromptSourceUseCase.trim();
+    const description = newPromptSourceDescription.trim();
+    const name = newPromptSourceName.trim();
+    const url = newPromptSourceUrl.trim();
+
+    if (!suitableUse || !description || !name || !url) {
+      onNotify("请补齐适合用途、说明、名称与链接。", "error");
+      return;
+    }
+
+    if (!isHttpUrl(url)) {
+      onNotify("线上资源链接需要是 http 或 https 地址。", "error");
+      return;
+    }
+
+    const updatedSources: OnlinePromptSource[] = [
+      ...onlinePromptSources,
+      { id: String(Date.now()), suitable_use: suitableUse, description, name, url }
+    ];
+
+    onUpdateConfig({ ...config, online_prompt_sources: updatedSources });
+    setNewPromptSourceUseCase("");
+    setNewPromptSourceDescription("");
+    setNewPromptSourceName("");
+    setNewPromptSourceUrl("");
+    setShowAddOnlinePromptSource(false);
+    onNotify(`线上 Prompt 资源「${name}」已登记。`, "success");
+  };
+
+  const handleDeleteOnlinePromptSource = (id: string, name: string) => {
+    const updatedSources = onlinePromptSources.filter((source) => source.id !== id);
+    onUpdateConfig({ ...config, online_prompt_sources: updatedSources });
+    onNotify(`线上 Prompt 资源「${name}」已移除。`, "info");
+  };
+
   const isSubmoduleCollapsed = (id: DashboardSubmodule) => collapsedSubmodules.includes(id);
   const toggleSubmodule = (id: DashboardSubmodule) => {
     setCollapsedSubmodules((current) => (
@@ -512,188 +572,375 @@ export default function DashboardPanel({ config, onUpdateConfig, onNotify }: Das
               <BookOpen className="text-emerald-400 w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold font-display text-slate-100">AI 提示词沉淀工作间</h3>
-              <p className="text-xs text-slate-400 mt-1">沉淀您在不同场景、职能及模式下的黄金提示词 Prompt</p>
+              <h3 className="text-base font-bold font-display text-slate-100">AI 提示词库</h3>
+              <p className="text-xs text-slate-400 mt-1">本地模板与线上 Prompt 资源分层管理</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {renderCollapseButton("prompts")}
             <button
-              onClick={() => setShowAddPrompt(!showAddPrompt)}
+              onClick={() => {
+                if (activePromptMode === "local") {
+                  setShowAddPrompt(!showAddPrompt);
+                  setShowAddOnlinePromptSource(false);
+                  return;
+                }
+
+                setShowAddOnlinePromptSource(!showAddOnlinePromptSource);
+                setShowAddPrompt(false);
+              }}
               className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>沉淀 Prompt</span>
+              <span>{activePromptMode === "local" ? "沉淀 Prompt" : "登记资源"}</span>
             </button>
           </div>
         </div>
 
         {isSubmoduleCollapsed("prompts") ? (
           <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
-            已收纳 {promptCategories.length} 个 Prompt 标签，当前标签为 {activePromptCategory}。
+            已收纳 {localPromptTotal} 条本地 Prompt，{onlinePromptSources.length} 个线上资源。
           </div>
         ) : (
         <>
-        {/* Add prompt form */}
-        <AnimatePresence>
-          {showAddPrompt && (
-            <motion.form
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              onSubmit={handleAddPrompt}
-              className="bg-slate-900/60 p-4 border border-white/5 rounded-xl mb-4 space-y-3 overflow-hidden"
-            >
-              <h4 className="text-xs font-bold text-slate-300">沉淀高质量 Prompt 至指定标签</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select
-                  value={promptTargetCategory}
-                  onChange={(e) => setPromptTargetCategory(e.target.value)}
-                  className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
-                >
-                  {promptCategories.map((catKey) => (
-                    <option key={catKey} value={catKey}>{catKey}</option>
-                  ))}
-                  <option value="__custom__">+ 自定义新标签</option>
-                </select>
-                {promptTargetCategory === "__custom__" ? (
+        <div className="grid grid-cols-2 gap-2 bg-slate-950/40 border border-white/5 rounded-xl p-1 mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              setActivePromptMode("local");
+              setShowAddOnlinePromptSource(false);
+            }}
+            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              activePromptMode === "local"
+                ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-950/20"
+                : "text-slate-400 hover:bg-slate-900/70 hover:text-slate-200"
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>本地</span>
+            <span className="font-mono text-[10px]">{localPromptTotal}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActivePromptMode("online");
+              setShowAddPrompt(false);
+            }}
+            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              activePromptMode === "online"
+                ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-950/20"
+                : "text-slate-400 hover:bg-slate-900/70 hover:text-slate-200"
+            }`}
+          >
+            <Globe2 className="w-4 h-4" />
+            <span>线上</span>
+            <span className="font-mono text-[10px]">{onlinePromptSources.length}</span>
+          </button>
+        </div>
+
+        {activePromptMode === "local" ? (
+          <>
+          {/* Add prompt form */}
+          <AnimatePresence>
+            {showAddPrompt && (
+              <motion.form
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                onSubmit={handleAddPrompt}
+                className="bg-slate-900/60 p-4 border border-white/5 rounded-xl mb-4 space-y-3 overflow-hidden"
+              >
+                <h4 className="text-xs font-bold text-slate-300">沉淀高质量 Prompt 至指定标签</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select
+                    value={promptTargetCategory}
+                    onChange={(e) => setPromptTargetCategory(e.target.value)}
+                    className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                  >
+                    {promptCategories.map((catKey) => (
+                      <option key={catKey} value={catKey}>{catKey}</option>
+                    ))}
+                    <option value="__custom__">+ 自定义新标签</option>
+                  </select>
+                  {promptTargetCategory === "__custom__" ? (
+                    <input
+                      type="text"
+                      placeholder="输入自定义标签，例如: 面试 / 产品 / 日报"
+                      value={customPromptCategory}
+                      onChange={(e) => setCustomPromptCategory(e.target.value)}
+                      className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                    />
+                  ) : (
+                    <div className="bg-slate-950/70 px-3 py-2 text-xs text-slate-400 border border-white/5 rounded font-mono">
+                      当前写入标签: {promptTargetCategory}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3">
                   <input
                     type="text"
-                    placeholder="输入自定义标签，例如: 面试 / 产品 / 日报"
-                    value={customPromptCategory}
-                    onChange={(e) => setCustomPromptCategory(e.target.value)}
+                    placeholder="模板简短标题，如「精简周报润色」"
+                    value={newPromptTitle}
+                    onChange={(e) => setNewPromptTitle(e.target.value)}
+                    className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                  />
+                  <textarea
+                    placeholder="在此写入完整的 Prompt 占位模板，例如: '请作为资深软件设计者，请帮我重构以下 React 组件...'"
+                    rows={4}
+                    value={newPromptContent}
+                    onChange={(e) => setNewPromptContent(e.target.value)}
+                    className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none resize-none"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2 text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPrompt(false)}
+                    className="bg-slate-800 px-3 py-1.5 rounded text-slate-300 hover:bg-slate-700"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded hover:bg-emerald-400"
+                  >
+                    确定沉淀
+                  </button>
+                </div>
+              </motion.form>
+            )}
+          </AnimatePresence>
+
+          {/* Double-column Category Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Category left rail */}
+            <div className="md:col-span-1 space-y-1">
+              <span className="text-[10px] font-mono tracking-wider text-slate-500 uppercase px-2 mb-2 block font-display">
+                提示词大类
+              </span>
+              {promptCategories.map((catKey) => {
+                const count = (config.prompts[catKey] || []).length;
+                const isActive = catKey === activePromptCategory;
+                return (
+                  <button
+                    key={catKey}
+                    onClick={() => {
+                      setActivePromptCategory(catKey);
+                      setShowAddPrompt(false);
+                    }}
+                    className={`w-full flex items-center justify-between text-xs px-3.5 py-2.5 rounded-xl transition-all font-medium ${
+                      isActive
+                        ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-semibold"
+                        : "text-slate-400 hover:bg-slate-900/40 hover:text-slate-200 border-l-[3px] border-transparent"
+                    }`}
+                  >
+                    <span className="truncate">{catKey}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                      isActive ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-800 text-slate-500"
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* List panel on right */}
+            <div className="md:col-span-3 space-y-4">
+              <AnimatePresence mode="popLayout">
+                {(!config.prompts[activePromptCategory] || config.prompts[activePromptCategory].length === 0) ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-500 font-mono text-xs">
+                    <Terminal className="text-slate-700 w-8 h-8 mb-2" />
+                    <p>当前选中的提示词分类 [ {activePromptCategory} ] 暂无模板</p>
+                    <button
+                      onClick={() => setShowAddPrompt(true)}
+                      className="mt-3 text-emerald-400 hover:underline"
+                    >
+                      一键登记首条 Prompt
+                    </button>
+                  </div>
+                ) : (
+                  config.prompts[activePromptCategory].map((p) => (
+                    <motion.div
+                      key={p.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="bg-slate-900/30 border border-white/5 rounded-xl p-4.5 space-y-3 group hover:border-emerald-500/25 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">
+                          {p.title}
+                        </span>
+                        <div className="flex items-center space-x-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleCopy(p.content, p.title + " Prompt")}
+                            className="flex items-center space-x-1 bg-slate-800 hover:bg-emerald-500/10 hover:text-emerald-300 text-[11px] px-2.5 py-1 rounded-lg text-slate-300 transition-all font-mono"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>一键复制 Prompt</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeletePrompt(p.id, p.title)}
+                            className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="bg-slate-950/70 p-3 rounded-lg border border-white/5 max-h-[160px] overflow-y-auto">
+                        <p className="text-slate-400 leading-relaxed font-sans text-xs whitespace-pre-wrap select-all selection:bg-emerald-500/20">
+                          {p.content}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+          </>
+        ) : (
+          <>
+          <AnimatePresence>
+            {showAddOnlinePromptSource && (
+              <motion.form
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                onSubmit={handleAddOnlinePromptSource}
+                className="bg-slate-900/60 p-4 border border-white/5 rounded-xl mb-4 space-y-3 overflow-hidden"
+              >
+                <h4 className="text-xs font-bold text-slate-300">登记线上 Prompt 资源</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    placeholder="适合用途，例如: ChatGPT 角色扮演、写作、学习、办公"
+                    value={newPromptSourceUseCase}
+                    onChange={(e) => setNewPromptSourceUseCase(e.target.value)}
                     className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
                   />
-                ) : (
-                  <div className="bg-slate-950/70 px-3 py-2 text-xs text-slate-400 border border-white/5 rounded font-mono">
-                    当前写入标签: {promptTargetCategory}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="模板简短标题，如「精简周报润色」"
-                  value={newPromptTitle}
-                  onChange={(e) => setNewPromptTitle(e.target.value)}
-                  className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
-                />
+                  <input
+                    type="text"
+                    placeholder="资源名称，例如: awesome-chatgpt-prompts"
+                    value={newPromptSourceName}
+                    onChange={(e) => setNewPromptSourceName(e.target.value)}
+                    className="bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                  />
+                </div>
                 <textarea
-                  placeholder="在此写入完整的 Prompt 占位模板，例如: '请作为资深软件设计者，请帮我重构以下 React 组件...'"
-                  rows={4}
-                  value={newPromptContent}
-                  onChange={(e) => setNewPromptContent(e.target.value)}
+                  placeholder="说明，例如: 经典开源提示词库，适合快速找各种让 AI 扮演某角色的 Prompt。"
+                  rows={3}
+                  value={newPromptSourceDescription}
+                  onChange={(e) => setNewPromptSourceDescription(e.target.value)}
                   className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none resize-none"
                 />
-              </div>
-              <div className="flex justify-end space-x-2 text-xs pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPrompt(false)}
-                  className="bg-slate-800 px-3 py-1.5 rounded text-slate-300 hover:bg-slate-700"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded hover:bg-emerald-400"
-                >
-                  确定沉淀
-                </button>
-              </div>
-            </motion.form>
-          )}
-        </AnimatePresence>
-
-        {/* Double-column Category Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Category left rail */}
-          <div className="md:col-span-1 space-y-1">
-            <span className="text-[10px] font-mono tracking-wider text-slate-500 uppercase px-2 mb-2 block font-display">
-              提示词大类
-            </span>
-            {promptCategories.map((catKey) => {
-              const count = (config.prompts[catKey] || []).length;
-              const isActive = catKey === activePromptCategory;
-              return (
-                <button
-                  key={catKey}
-                  onClick={() => {
-                    setActivePromptCategory(catKey);
-                    setShowAddPrompt(false);
-                  }}
-                  className={`w-full flex items-center justify-between text-xs px-3.5 py-2.5 rounded-xl transition-all font-medium ${
-                    isActive
-                      ? "bg-emerald-500/10 text-emerald-300 border-l-[3px] border-emerald-500 font-semibold"
-                      : "text-slate-400 hover:bg-slate-900/40 hover:text-slate-200 border-l-[3px] border-transparent"
-                  }`}
-                >
-                  <span className="truncate">{catKey}</span>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                    isActive ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-800 text-slate-500"
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* List panel on right */}
-          <div className="md:col-span-3 space-y-4">
-            <AnimatePresence mode="popLayout">
-              {(!config.prompts[activePromptCategory] || config.prompts[activePromptCategory].length === 0) ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-500 font-mono text-xs">
-                  <Terminal className="text-slate-700 w-8 h-8 mb-2" />
-                  <p>当前选中的提示词分类 [ {activePromptCategory} ] 暂无模板</p>
+                <input
+                  type="url"
+                  placeholder="链接，例如: https://github.com/awesome-chatgpt-prompts/awesome-chatgpt-prompts-github.git"
+                  value={newPromptSourceUrl}
+                  onChange={(e) => setNewPromptSourceUrl(e.target.value)}
+                  className="w-full bg-slate-950 px-3 py-2 text-xs text-slate-200 border border-white/5 rounded focus:border-emerald-500 outline-none"
+                />
+                <div className="flex justify-end space-x-2 text-xs pt-1">
                   <button
-                    onClick={() => setShowAddPrompt(true)}
+                    type="button"
+                    onClick={() => setShowAddOnlinePromptSource(false)}
+                    className="bg-slate-800 px-3 py-1.5 rounded text-slate-300 hover:bg-slate-700"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded hover:bg-emerald-400"
+                  >
+                    保存资源
+                  </button>
+                </div>
+              </motion.form>
+            )}
+          </AnimatePresence>
+
+          <div className="space-y-4">
+            <AnimatePresence mode="popLayout">
+              {onlinePromptSources.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-500 font-mono text-xs">
+                  <Globe2 className="text-slate-700 w-8 h-8 mb-2" />
+                  <p>暂无线上 Prompt 资源</p>
+                  <button
+                    onClick={() => setShowAddOnlinePromptSource(true)}
                     className="mt-3 text-emerald-400 hover:underline"
                   >
-                    一键登记首条 Prompt
+                    登记首个线上资源
                   </button>
                 </div>
               ) : (
-                config.prompts[activePromptCategory].map((p) => (
+                onlinePromptSources.map((source) => (
                   <motion.div
-                    key={p.id}
+                    key={source.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    className="bg-slate-900/30 border border-white/5 rounded-xl p-4.5 space-y-3 group hover:border-emerald-500/25 transition-colors"
+                    className="bg-slate-900/30 border border-white/5 rounded-xl p-4 space-y-3 group hover:border-emerald-500/25 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">
-                        {p.title}
-                      </span>
-                      <div className="flex items-center space-x-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">
+                            {source.name}
+                          </span>
+                          <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                            ONLINE
+                          </span>
+                        </div>
+                        <p className="text-xs leading-relaxed text-slate-400">
+                          {source.description}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 self-start opacity-70 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => handleCopy(p.content, p.title + " Prompt")}
-                          className="flex items-center space-x-1 bg-slate-800 hover:bg-emerald-500/10 hover:text-emerald-300 text-[11px] px-2.5 py-1 rounded-lg text-slate-300 transition-all font-mono"
+                          onClick={() => handleCopy(source.url, source.name + " 链接")}
+                          className="text-slate-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800"
+                          title="复制链接"
                         >
                           <Copy className="w-3.5 h-3.5" />
-                          <span>一键复制 Prompt</span>
                         </button>
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-slate-400 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-800"
+                          title="打开链接"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                         <button
-                          onClick={() => handleDeletePrompt(p.id, p.title)}
+                          onClick={() => handleDeleteOnlinePromptSource(source.id, source.name)}
                           className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800"
+                          title="删除资源"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
-                    <div className="bg-slate-950/70 p-3 rounded-lg border border-white/5 max-h-[160px] overflow-y-auto">
-                      <p className="text-slate-400 leading-relaxed font-sans text-xs whitespace-pre-wrap select-all selection:bg-emerald-500/20">
-                        {p.content}
-                      </p>
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/5 bg-slate-950/70 px-2.5 py-1 text-slate-300">
+                        <Globe2 className="h-3.5 w-3.5 flex-none text-emerald-400" />
+                        <span className="truncate">{source.suitable_use}</span>
+                      </span>
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/5 bg-slate-950/70 px-2.5 py-1 text-slate-500">
+                        <LinkIcon className="h-3.5 w-3.5 flex-none text-slate-500" />
+                        <span className="break-all">{source.url}</span>
+                      </span>
                     </div>
                   </motion.div>
                 ))
               )}
             </AnimatePresence>
           </div>
-        </div>
+          </>
+        )}
         </>
         )}
       </div>

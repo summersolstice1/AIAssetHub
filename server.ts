@@ -47,6 +47,15 @@ const default_config = {
       { "id": "5", "title": "Tailwind配色建议", "content": "设计一个以神秘太空黑（Space Black）为基底，搭配薄荷绿闪光色（Mint Glow）和优雅石墨灰的现代高对比度配色方案，输出对应的 Tailwind 颜色配置类：" }
     ]
   },
+  online_prompt_sources: [
+    {
+      "id": "1",
+      "suitable_use": "ChatGPT 角色扮演、写作、学习、办公",
+      "description": "经典开源提示词库，适合快速找各种“让 AI 扮演某角色”的 Prompt。",
+      "name": "awesome-chatgpt-prompts",
+      "url": "https://github.com/awesome-chatgpt-prompts/awesome-chatgpt-prompts-github.git"
+    }
+  ],
   "dev_apps": [
     { "id": "1", "name": "VS Code", "path": "C:\\Program Files\\Microsoft VS Code\\Code.exe" },
     { "id": "2", "name": "Docker Desktop", "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe" },

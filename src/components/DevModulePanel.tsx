@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AppConfig, ManagedProject, ManagedProjectScope, ManagedProjectStatus } from "../types";
 import { getGithubRepositoryMeta } from "../services/projectService";
+import CollapseToggle from "./CollapseToggle";
 
 interface ProjectManagementPanelProps {
   config: AppConfig;
@@ -44,6 +45,7 @@ interface ProjectFormState {
 }
 
 type StatusFilter = "all" | ManagedProjectStatus;
+type ProjectSubmodule = "stats" | "filters" | "projects";
 
 const emptyForm = (): ProjectFormState => ({
   name: "",
@@ -96,6 +98,16 @@ export default function DevModulePanel({ config, onUpdateConfig, onNotify }: Pro
   const [editingId, setEditingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProjectFormState>(() => emptyForm());
+  const [collapsedSubmodules, setCollapsedSubmodules] = useState<ProjectSubmodule[]>([]);
+
+  const isSubmoduleCollapsed = (id: ProjectSubmodule) => collapsedSubmodules.includes(id);
+  const toggleSubmodule = (id: ProjectSubmodule) => {
+    setCollapsedSubmodules((current) => (
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    ));
+  };
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -246,28 +258,41 @@ export default function DevModulePanel({ config, onUpdateConfig, onNotify }: Pro
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
-        <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-          <FolderGit2 className="w-4 h-4 text-violet-300 mb-2" />
-          <p className="text-2xl font-bold text-slate-100">{projects.length}</p>
-          <p className="text-[11px] text-slate-500">全部项目</p>
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-bold text-slate-100 font-display">项目统计概览</h4>
+          <p className="text-xs text-slate-400 mt-1">项目总数、GitHub 关联、本地路径与开发中状态。</p>
         </div>
-        <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-          <Github className="w-4 h-4 text-slate-300 mb-2" />
-          <p className="text-2xl font-bold text-slate-100">{githubLinkedCount}</p>
-          <p className="text-[11px] text-slate-500">已关联 GitHub</p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-          <MapPin className="w-4 h-4 text-orange-300 mb-2" />
-          <p className="text-2xl font-bold text-slate-100">{localProjectCount}</p>
-          <p className="text-[11px] text-slate-500">本地路径项目</p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-          <ServerCog className="w-4 h-4 text-emerald-300 mb-2" />
-          <p className="text-2xl font-bold text-slate-100">{activeProjectCount}</p>
-          <p className="text-[11px] text-slate-500">开发中</p>
-        </div>
+        <CollapseToggle collapsed={isSubmoduleCollapsed("stats")} onToggle={() => toggleSubmodule("stats")} />
       </div>
+      {isSubmoduleCollapsed("stats") ? (
+        <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 mb-5">
+          已收纳统计概览：全部 {projects.length} 个，GitHub {githubLinkedCount} 个，本地路径 {localProjectCount} 个，开发中 {activeProjectCount} 个。
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
+            <FolderGit2 className="w-4 h-4 text-violet-300 mb-2" />
+            <p className="text-2xl font-bold text-slate-100">{projects.length}</p>
+            <p className="text-[11px] text-slate-500">全部项目</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
+            <Github className="w-4 h-4 text-slate-300 mb-2" />
+            <p className="text-2xl font-bold text-slate-100">{githubLinkedCount}</p>
+            <p className="text-[11px] text-slate-500">已关联 GitHub</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
+            <MapPin className="w-4 h-4 text-orange-300 mb-2" />
+            <p className="text-2xl font-bold text-slate-100">{localProjectCount}</p>
+            <p className="text-[11px] text-slate-500">本地路径项目</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 p-4">
+            <ServerCog className="w-4 h-4 text-emerald-300 mb-2" />
+            <p className="text-2xl font-bold text-slate-100">{activeProjectCount}</p>
+            <p className="text-[11px] text-slate-500">开发中</p>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {showForm && (
@@ -363,28 +388,54 @@ export default function DevModulePanel({ config, onUpdateConfig, onNotify }: Pro
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between mb-4">
-        <div className="relative w-full md:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索项目、路径、GitHub、备注或标签"
-            className="pl-9 bg-slate-950/70 border-white/10 text-xs"
-          />
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-bold text-slate-100 font-display">项目搜索与状态筛选</h4>
+          <p className="text-xs text-slate-400 mt-1">快速定位线上仓库、线下路径、备注与标签。</p>
         </div>
-
-        <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-          <TabsList className="bg-slate-950/60 border border-white/5">
-            <TabsTrigger value="all" className="text-xs">全部</TabsTrigger>
-            <TabsTrigger value="planning" className="text-xs">规划中</TabsTrigger>
-            <TabsTrigger value="active" className="text-xs">开发中</TabsTrigger>
-            <TabsTrigger value="paused" className="text-xs">暂停</TabsTrigger>
-            <TabsTrigger value="done" className="text-xs">已完成</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <CollapseToggle collapsed={isSubmoduleCollapsed("filters")} onToggle={() => toggleSubmodule("filters")} />
       </div>
+      {isSubmoduleCollapsed("filters") ? (
+        <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 mb-4">
+          已收纳筛选器：状态「{statusFilter === "all" ? "全部" : statusMeta[statusFilter].label}」，搜索词 {query.trim() ? `「${query.trim()}」` : "为空"}。
+        </div>
+      ) : (
+        <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between mb-4">
+          <div className="relative w-full md:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索项目、路径、GitHub、备注或标签"
+              className="pl-9 bg-slate-950/70 border-white/10 text-xs"
+            />
+          </div>
 
+          <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+            <TabsList className="bg-slate-950/60 border border-white/5">
+              <TabsTrigger value="all" className="text-xs">全部</TabsTrigger>
+              <TabsTrigger value="planning" className="text-xs">规划中</TabsTrigger>
+              <TabsTrigger value="active" className="text-xs">开发中</TabsTrigger>
+              <TabsTrigger value="paused" className="text-xs">暂停</TabsTrigger>
+              <TabsTrigger value="done" className="text-xs">已完成</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-bold text-slate-100 font-display">项目卡片列表</h4>
+          <p className="text-xs text-slate-400 mt-1">当前展示 {filteredProjects.length} / {projects.length} 个项目。</p>
+        </div>
+        <CollapseToggle collapsed={isSubmoduleCollapsed("projects")} onToggle={() => toggleSubmodule("projects")} />
+      </div>
+      {isSubmoduleCollapsed("projects") ? (
+        <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+          已收纳项目列表：当前筛选下有 {filteredProjects.length} 个项目。
+        </div>
+      ) : (
+      <>
       {filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {filteredProjects.map((project) => {
@@ -513,6 +564,8 @@ export default function DevModulePanel({ config, onUpdateConfig, onNotify }: Pro
             添加第一个项目
           </button>
         </div>
+      )}
+      </>
       )}
     </div>
   );

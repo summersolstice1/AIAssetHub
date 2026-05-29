@@ -74,6 +74,15 @@
       }
     ]
   },
+  "online_prompt_sources": [
+    {
+      "id": "1",
+      "suitable_use": "ChatGPT 角色扮演、写作、学习、办公",
+      "description": "经典开源提示词库，适合快速找各种“让 AI 扮演某角色”的 Prompt。",
+      "name": "awesome-chatgpt-prompts",
+      "url": "https://github.com/awesome-chatgpt-prompts/awesome-chatgpt-prompts-github.git"
+    }
+  ],
   "dev_apps": [
     {
       "id": "1",

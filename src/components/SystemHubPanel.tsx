@@ -18,10 +18,13 @@ import {
   getPortUsage,
   getSystemMetrics
 } from "../services/systemService";
+import CollapseToggle from "./CollapseToggle";
 
 interface SystemHubProps {
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
 }
+
+type SystemSubmodule = "metrics" | "environment" | "ports";
 
 export default function SystemHubPanel({ onNotify }: SystemHubProps) {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
@@ -30,6 +33,16 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
   const [ports, setPorts] = useState<PortUsage[]>([]);
   const [loadingPorts, setLoadingPorts] = useState(false);
   const [portsRefreshedAt, setPortsRefreshedAt] = useState("");
+  const [collapsedSubmodules, setCollapsedSubmodules] = useState<SystemSubmodule[]>([]);
+
+  const isSubmoduleCollapsed = (id: SystemSubmodule) => collapsedSubmodules.includes(id);
+  const toggleSubmodule = (id: SystemSubmodule) => {
+    setCollapsedSubmodules((current) => (
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    ));
+  };
 
   // Poll metrics every 2 seconds for active reactive gauges
   useEffect(() => {
@@ -144,6 +157,20 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
 
   return (
     <div className="space-y-6" id="system-hub-root">
+      <div className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-slate-900/20 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold font-display text-slate-100">实时资源仪表</h3>
+            <p className="text-xs text-slate-400 mt-1">CPU、内存、GPU 温度与显存状态。</p>
+          </div>
+          <CollapseToggle collapsed={isSubmoduleCollapsed("metrics")} onToggle={() => toggleSubmodule("metrics")} />
+        </div>
+
+        {isSubmoduleCollapsed("metrics") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳 4 个实时资源指标：CPU {metrics.cpuUsage}% / 内存 {memoryPercent}% / GPU {metrics.gpuTemp}°C / 显存 {vramPercent}%。
+          </div>
+        ) : (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between group hover:border-emerald-500/40 transition-all duration-300">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
@@ -313,6 +340,8 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
           </div>
         </div>
       </div>
+        )}
+      </div>
 
       <div className="glass-panel p-6 rounded-2xl relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-white/5 pb-4">
@@ -331,17 +360,24 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
               <p className="text-[11px] text-slate-500 mt-1 font-mono">上次刷新: {refreshedAt}</p>
             </div>
           </div>
-          <button
-            onClick={() => fetchEnv(true)}
-            disabled={loadingEnv}
-            className="flex items-center space-x-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 hover:text-emerald-400 active:scale-95 transition-all text-slate-300 border border-white/5 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loadingEnv ? "animate-spin" : ""}`} />
-            <span>{loadingEnv ? "诊断中..." : "手动刷新"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <CollapseToggle collapsed={isSubmoduleCollapsed("environment")} onToggle={() => toggleSubmodule("environment")} />
+            <button
+              onClick={() => fetchEnv(true)}
+              disabled={loadingEnv}
+              className="flex items-center space-x-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 hover:text-emerald-400 active:scale-95 transition-all text-slate-300 border border-white/5 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingEnv ? "animate-spin" : ""}`} />
+              <span>{loadingEnv ? "诊断中..." : "手动刷新"}</span>
+            </button>
+          </div>
         </div>
 
-        {loadingEnv ? (
+        {isSubmoduleCollapsed("environment") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳开发环境检测结果：Python / JDK / CUDA / Conda / 常用工具链，上次刷新 {refreshedAt}。
+          </div>
+        ) : loadingEnv ? (
           <div className="flex items-center justify-center py-8 text-slate-400 font-mono text-xs space-y-2 flex-col">
             <RefreshCw className="animate-spin text-emerald-400 w-5 h-5" />
             <p>正在后台探查 Python / Conda / CUDA / JDK / Node / Git 等开发环境...</p>
@@ -436,16 +472,25 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
               <p className="text-[11px] text-slate-500 mt-1 font-mono">上次刷新: {portsRefreshedAt || "尚未刷新"}</p>
             </div>
           </div>
-          <button
-            onClick={() => fetchPorts(true)}
-            disabled={loadingPorts}
-            className="flex items-center space-x-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 hover:text-sky-300 active:scale-95 transition-all text-slate-300 border border-white/5 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loadingPorts ? "animate-spin" : ""}`} />
-            <span>{loadingPorts ? "读取中..." : "刷新端口"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <CollapseToggle collapsed={isSubmoduleCollapsed("ports")} onToggle={() => toggleSubmodule("ports")} />
+            <button
+              onClick={() => fetchPorts(true)}
+              disabled={loadingPorts}
+              className="flex items-center space-x-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 hover:text-sky-300 active:scale-95 transition-all text-slate-300 border border-white/5 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingPorts ? "animate-spin" : ""}`} />
+              <span>{loadingPorts ? "读取中..." : "刷新端口"}</span>
+            </button>
+          </div>
         </div>
 
+        {isSubmoduleCollapsed("ports") ? (
+          <div className="rounded-xl border border-white/5 bg-slate-900/30 px-4 py-3 text-xs text-slate-400">
+            已收纳端口监控：共 {ports.length} 个端口，监听中 {listeningPortCount} 个，上次刷新 {portsRefreshedAt || "尚未刷新"}。
+          </div>
+        ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <div className="bg-slate-900/40 rounded-xl border border-white/5 p-4">
             <p className="text-[11px] text-slate-500 font-mono uppercase">Total Ports</p>
@@ -508,6 +553,8 @@ export default function SystemHubPanel({ onNotify }: SystemHubProps) {
             <Network className="w-8 h-8 mb-2 text-slate-600" />
             <p>暂未读取到端口占用信息。</p>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
